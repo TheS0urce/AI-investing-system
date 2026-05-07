@@ -1,2 +1,8 @@
 __pycache__/
 *.pyc
+.idea/
+
+# local/dev artifacts
+.idea/
+.DS_Store
+setup_ai_investing.sh
