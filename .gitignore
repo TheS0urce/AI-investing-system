@@ -6,3 +6,5 @@ __pycache__/
 .idea/
 .DS_Store
 setup_ai_investing.sh
+
+.coverage
