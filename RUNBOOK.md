@@ -245,3 +245,137 @@ For each change:
 
 Rollback trigger: any failed smoke test or unexpected order behavior.
 
+## Weekly Operations Checklist (Production Safety Rhythm)
+
+### 1) Repo and release hygiene
+- [ ] `git switch main && git pull origin main`
+- [ ] `git status` is clean
+- [ ] Confirm current deployed commit/tag matches expected release
+
+### 2) Safety + drift checks
+- [ ] Run `./scripts/check.sh`
+- [ ] Confirm tests pass and no unexpected coverage drops
+- [ ] Run demo smoke check: `python examples/run_demo.py`
+- [ ] Verify expected safety blocking behavior still appears when edge is insufficient
+
+### 3) API security checks
+- [ ] `/health` returns 200
+- [ ] `/simulate_tick` without API key returns 401
+- [ ] `/simulate_tick` with valid API key returns 200
+- [ ] Confirm `.env` is not tracked in git (`git ls-files | grep .env` returns nothing)
+
+### 4) Runtime health checks
+- [ ] LaunchAgent service is running (`launchctl list | grep com.aiinvesting.api`)
+- [ ] Review `logs/api.err.log` for repeated failures
+- [ ] Review `logs/api.out.log` for unexpected spikes in blocked reasons
+- [ ] Confirm no sustained restart loops or watchdog incidents
+
+### 5) Risk and capital controls
+- [ ] Confirm kill switch state is as intended
+- [ ] Review daily loss and drawdown metrics
+- [ ] Confirm reserve ratio is maintained per policy
+- [ ] Confirm no unauthorized parameter drift in risk config
+
+### 6) Secrets and access
+- [ ] Verify API key age (rotate if due)
+- [ ] Verify Tailscale devices are only expected/trusted devices
+- [ ] Confirm no public port-forwarding enabled on router
+- [ ] Confirm MFA remains enabled on broker/bank/email
+
+### 7) Backup and recovery
+- [ ] Verify latest backup exists and is readable
+- [ ] Run a quick restore sanity test (quarterly full restore drill)
+- [ ] Confirm incident response contact/checklist is current
+
+### 8) Change management
+- [ ] Any production change had passing tests + peer review
+- [ ] Post-deploy smoke checks were completed and logged
+- [ ] Record weekly ops summary (issues, actions, next risks)
+
+---
+
+### Command Pack (copy/paste)
+```bash
+git switch main && git pull origin main
+git status
+./scripts/check.sh
+curl -s http://127.0.0.1:8000/health
+curl -i -X POST http://127.0.0.1:8000/simulate_tick -H "Content-Type: application/json" -d '{}'
+source .env && curl -s -X POST http://127.0.0.1:8000/simulate_tick -H "Content-Type: application/json" -H "X-API-Key: $AI_API_KEY" -d '{}'
+launchctl list | grep com.aiinvesting.api
+
+## Monthly Governance Checklist (Risk, Scaling, Security, Resilience)
+
+### 1) Security governance
+- [ ] Rotate API key (or confirm age < 90 days)
+- [ ] Verify `.env` remains untracked and local-only
+- [ ] Review Tailscale device list; remove unknown/stale devices
+- [ ] Verify MFA still enabled for broker, bank, email, and GitHub
+- [ ] Confirm no public router port-forwarding exists
+
+### 2) Strategy risk governance
+- [ ] Review 30-day realized PnL after fees
+- [ ] Review 30-day max drawdown
+- [ ] Review daily loss breach count
+- [ ] Review kill-switch activations and reasons
+- [ ] Review blocked order reason distribution (risk/value sanity)
+
+### 3) Profit-scaling review window decision (30-day cadence)
+Inputs:
+- starting equity of window
+- realized profit after fees
+- window drawdown
+- ops status (critical API errors / data gaps / kill-switch events)
+
+Decision policy:
+- If `ops not clean` OR drawdown breach:
+  - no new external capital
+  - no profit reinvestment
+  - move profit to reserve
+  - reduce risk budget
+  - if repeated failure windows >= 2, keep strategy paused
+- If clean + profitable:
+  - apply reinvest/top-up bands per scaling policy
+  - enforce strategy allocation cap
+  - preserve minimum reserve ratio
+
+Checklist:
+- [ ] `ops_ok` evaluated and documented
+- [ ] `profit_margin` computed and documented
+- [ ] `reinvest_fraction` decision documented
+- [ ] `external_addition_limit` decision documented
+- [ ] `strategy_capital` cap enforcement confirmed
+- [ ] reserve ratio still >= policy minimum
+
+### 4) Operational resilience
+- [ ] Run full quality gate (`./scripts/check.sh`)
+- [ ] Confirm CI workflow green on latest default branch
+- [ ] Validate launch service auto-restart behavior (controlled restart test)
+- [ ] Review error logs for recurring patterns
+- [ ] Confirm monitoring/alerts still deliver notifications
+
+### 5) Backup and disaster recovery
+- [ ] Verify latest backup timestamp and integrity
+- [ ] Restore drill in clean environment (monthly lightweight / quarterly full)
+- [ ] Verify restore can:
+  - run tests
+  - start API
+  - pass auth smoke checks
+
+### 6) Incident drill cadence
+- [ ] Run a tabletop incident drill this month:
+  - scenario: bad data feed / auth failure / prolonged outage
+  - verify kill-switch + pause workflow
+  - verify reconciliation + resume checklist
+- [ ] Capture lessons learned and update runbook
+
+### 7) Compliance & financial controls
+- [ ] Reconcile broker statements vs internal logs
+- [ ] Reconcile bank transfers and reserve balances
+- [ ] Confirm no unauthorized transfer or API permission changes
+- [ ] Confirm tax record exports are archived
+
+### 8) Governance sign-off
+- [ ] Monthly review completed by operator
+- [ ] Open action items tracked with owner + due date
+- [ ] “Safe to continue operation” decision recorded

@@ -120,3 +120,114 @@ def audit(request: Request, x_api_key: str | None = Header(default=None)):
         }
         for e in system.audit_log[-200:]
     ]
+@app.get("/dashboard/summary")
+def dashboard_summary(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return {
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "service": {"status": "ok", "uptime_seconds": 0, "version": "0.3.0"},
+        "security": {
+            "api_auth_enforced": True,
+            "rate_limit_per_minute": int(DEFAULT_RATE),
+            "api_key_age_days": None,
+            "tailscale_connected": None,
+        },
+        "risk": {
+            "equity": 1000.0,
+            "daily_realized_pnl": 0.0,
+            "rolling_30d_drawdown_pct": 0.0,
+            "kill_switch_active": config.policy.kill_switch,
+        },
+        "alerts": {"critical_open": 0, "warning_open": 0},
+    }
+
+
+@app.get("/dashboard/risk")
+def dashboard_risk(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return {
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "limits": {
+            "max_position_size_pct": 0.05,
+            "max_daily_loss_pct": config.risk.max_daily_loss_pct,
+            "max_window_drawdown_pct": config.risk.max_drawdown_pct,
+        },
+        "current": {
+            "gross_exposure_pct": 0.0,
+            "largest_position_pct": 0.0,
+            "daily_realized_loss_pct": 0.0,
+            "window_drawdown_pct": 0.0,
+        },
+        "breaches_30d": {"daily_loss": 0, "window_drawdown": 0, "position_cap": 0},
+        "blocked_order_reasons_7d": {},
+    }
+
+
+@app.get("/dashboard/scaling-window")
+def dashboard_scaling_window(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return {
+        "window": {"start": None, "end": None, "days": 30},
+        "inputs": {
+            "starting_capital": 50,
+            "starting_equity_of_window": None,
+            "equity": None,
+            "realised_profit_after_fees": None,
+            "profit_margin": None,
+            "ops_ok": True,
+            "window_drawdown_pct": 0.0,
+        },
+        "policy": {
+            "reserve_ratio_min": 0.30,
+            "max_strategy_allocation_pct": 0.70,
+            "max_external_addition_per_review": 50,
+        },
+        "decision": {
+            "allow_new_external_capital": 0.0,
+            "reinvest_fraction_of_profit": 0.0,
+            "profit_to_reinvest": 0.0,
+            "profit_to_reserve": 0.0,
+            "strategy_capital_target": 0.0,
+            "pause_strategy": False,
+            "reason": "placeholder",
+        },
+    }
+
+
+@app.get("/dashboard/governance")
+def dashboard_governance(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return {
+        "weekly": {
+            "period_start": None,
+            "period_end": None,
+            "completed_items": 0,
+            "total_items": 0,
+            "overdue_items": [],
+        },
+        "monthly": {
+            "period": None,
+            "completed_items": 0,
+            "total_items": 0,
+            "signed_off": False,
+            "owner": None,
+            "last_updated": datetime.now(timezone.utc).isoformat(),
+        },
+    }
+
+
+@app.get("/dashboard/audit")
+def dashboard_audit(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return {
+        "count": len(system.audit_log[-200:]),
+        "events": [
+            {
+                "at": e.at.isoformat(),
+                "severity": e.severity,
+                "event": e.event,
+                "details": e.details,
+            }
+            for e in system.audit_log[-200:]
+        ],
+    }
