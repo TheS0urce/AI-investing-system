@@ -1,14 +1,11 @@
 __pycache__/
 *.pyc
-.idea/
 
 # local/dev artifacts
+.env
+logs/
 .idea/
 .DS_Store
-setup_ai_investing.sh
-
+__pycache__/
+*.pyc
 .coverage
-
-logs/
-
-.env
