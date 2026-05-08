@@ -8,3 +8,5 @@ __pycache__/
 setup_ai_investing.sh
 
 .coverage
+
+logs/
