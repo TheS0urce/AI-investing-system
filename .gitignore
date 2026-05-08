@@ -1,2 +1,11 @@
 __pycache__/
 *.pyc
+
+# local/dev artifacts
+.env
+logs/
+.idea/
+.DS_Store
+__pycache__/
+*.pyc
+.coverage
