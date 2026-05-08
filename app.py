@@ -46,6 +46,7 @@ class TickRequest(BaseModel):
     spread_bps: float = Field(default=8.0, ge=0)
     volume_24h: float = Field(default=5_000_000, ge=0)
     volatility_30d: float = Field(default=0.03, ge=0)
+
     cash: float = 1_000.0
     equity: float = 1_000.0
     peak_equity: float = 1_050.0
@@ -76,6 +77,7 @@ def simulate_tick(request: Request, req: TickRequest, x_api_key: str | None = He
         volatility_30d=req.volatility_30d,
         timestamp=datetime.now(timezone.utc),
     )
+
     portfolio = PortfolioState(
         cash=req.cash,
         equity=req.equity,
@@ -84,7 +86,9 @@ def simulate_tick(request: Request, req: TickRequest, x_api_key: str | None = He
         consecutive_losses=req.consecutive_losses,
         positions={},
     )
+
     order = system.process_tick(market, portfolio)
+
     return {
         "order_proposal": None if order is None else {
             "symbol": order.symbol,
@@ -108,6 +112,11 @@ def simulate_tick(request: Request, req: TickRequest, x_api_key: str | None = He
 def audit(request: Request, x_api_key: str | None = Header(default=None)):
     require_api_key(x_api_key)
     return [
-        {"at": e.at.isoformat(), "event": e.event, "severity": e.severity, "details": e.details}
+        {
+            "at": e.at.isoformat(),
+            "event": e.event,
+            "severity": e.severity,
+            "details": e.details,
+        }
         for e in system.audit_log[-200:]
     ]
