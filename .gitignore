@@ -10,3 +10,5 @@ setup_ai_investing.sh
 .coverage
 
 logs/
+
+.env
