@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
+<<<<<<< HEAD
+=======
 
 # local/dev artifacts
 .env
@@ -9,3 +11,4 @@ logs/
 __pycache__/
 *.pyc
 .coverage
+>>>>>>> origin/main
