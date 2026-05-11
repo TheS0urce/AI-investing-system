@@ -152,3 +152,30 @@ For each change:
 4. Review for secrets/artifacts.
 5. Merge only when CI/checks are green.
 6. Post-merge smoke test (`/health`, auth checks, dashboard summary).
+
+
+## 11) Lightweight launcher (skip reinstall unless needed)
+
+Use the launcher script for day-to-day startup. It will:
+- create `.venv` if missing,
+- compute a hash of requirements files,
+- reinstall dependencies only when requirements changed,
+- run validation checks,
+- run health/auth/dashboard smoke checks,
+- start Streamlit dashboard.
+
+Run:
+```bash
+./scripts/launch_dashboard.sh
+```
+
+Behavior:
+- First run installs dependencies.
+- Subsequent runs skip dependency install unless `requirements.txt` or `requirements-dev.txt` changes.
+- Dashboard starts at `http://localhost:8501`.
+
+If you want a full reinstall anyway, delete the hash marker and rerun:
+```bash
+rm -f .venv/.deps_hash
+./scripts/launch_dashboard.sh
+```
