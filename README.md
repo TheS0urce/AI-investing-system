@@ -57,3 +57,99 @@ python examples/run_demo.py
 ## Important
 
 This code is educational infrastructure and not investment advice. Validate legal, tax, and regulatory obligations before live use.
+
+---
+
+## System Design + Risk Profile (One-Page)
+
+### Purpose
+This application is a safety-first trading decision scaffold designed for controlled operation under retail constraints. It is intended for staged rollout (simulation → paper/shadow → limited live) with human governance and deterministic guardrails.
+
+### High-Level Architecture
+The system is composed of:
+- **API layer (`app.py`)**  
+  Exposes:
+  - `GET /health`
+  - `POST /simulate_tick` (API key protected)
+  - `GET /dashboard/summary` (API key protected)
+- **Core orchestration (`src/ai_investing/system.py`)**  
+  Pipeline: market checks → signal generation → order proposal → cost/edge gate → portfolio/risk gate → manual review or approval.
+- **Safety/risk engine (`src/ai_investing/safety.py`)**  
+  Enforces hard pre-trade controls.
+- **Execution planner (`src/ai_investing/execution.py`)**  
+  Converts signal conviction into order size with capped risk budget.
+- **Strategy module (`src/ai_investing/strategy.py`)**  
+  Placeholder volatility-adjusted momentum signal generator.
+- **Scaling policy layer (`src/ai_investing/scaling.py`)**  
+  Deterministic reinvestment and allocation policy helpers.
+
+### Decision Flow (Per Tick)
+1. Validate market input quality (price, spread, liquidity, volatility).  
+2. Generate signal (or no-trade).  
+3. Convert signal to order proposal if confidence threshold is met.  
+4. Enforce net-edge-after-costs gate (fees + slippage).  
+5. Enforce portfolio and order risk constraints.  
+6. Return proposal for manual approval (default) or mark approved if policy allows.
+
+### Checks & Balances (Risk Controls)
+- **Market gates**
+  - Invalid/non-positive price blocked
+  - Wide spread blocked
+  - Insufficient volume blocked
+  - Excess volatility blocked
+- **Order/portfolio gates**
+  - Kill switch
+  - Cooldown after consecutive losses
+  - Daily loss cap
+  - Drawdown cap
+  - Max order notional
+  - Per-symbol exposure cap
+  - Gross exposure cap
+  - Leverage cap
+- **Cost viability gate**
+  - Expected edge must remain above minimum net edge after fees/slippage
+
+### Defaults (Safety-First)
+- Manual approval required by default
+- Autonomous execution disabled by default
+- Kill switch available
+- Fail-closed behavior when controls fail
+
+### Strategy & Sizing Profile
+- Strategy is a simple, deterministic placeholder (not production alpha).
+- Execution uses a fixed risk budget (2% of equity) and conviction-weighted sizing.
+- Low-confidence signals are ignored.
+- No live broker routing logic is included in this scaffold.
+
+### Self-Learning Status
+- **No online self-learning loop is implemented in runtime.**
+- No reinforcement updates, no automatic re-training, and no autonomous parameter adaptation.
+- Evolution is intended to occur via governed code/model promotion, not unattended online drift.
+
+### ROI / Scaling Policy Settings
+- Realized profit split helper:
+  - 38% reinvest
+  - 62% reserve
+- ROI tier allocation helper:
+  - `< $500`: accumulation (low risk focus)
+  - `$500–$999`: growth (medium risk bias)
+  - `>= $1000`: optimized mix
+- Strategy capital cap helper:
+  - Max strategy allocation (% of equity)
+  - Max external top-up per review window
+
+### Operational Readiness Model
+- **Local/staging preflight GO** requires:
+  - checks/tests pass,
+  - endpoint auth behavior verified,
+  - clean git state.
+- **Live-trading GO** additionally requires:
+  - legal/compliance confirmation,
+  - broker/API permission hardening,
+  - governance and incident readiness,
+  - runbook sign-off artefacts.
+
+### Current Scope & Limitations
+- Educational/safety infrastructure, not investment advice.
+- Not a complete OMS/EMS or broker-execution stack.
+- Requires explicit human governance and staged rollout before any live capital deployment.
