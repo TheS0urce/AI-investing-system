@@ -190,3 +190,82 @@ Implementation reference in code:
   - strategy-capital capping under max allocation and external addition constraints
 
 Use this module as the policy layer; keep ML components in shadow mode until governance promotion criteria are met.
+
+---
+
+## 13) Live Trading GO/NO-GO Final Sign-off (One-Page Form)
+
+Use this form immediately before enabling any live order placement.
+
+### 13.1 Metadata
+- Date (UTC): ______________________
+- Commit SHA: ______________________
+- Environment: [ ] Local  [ ] Staging  [ ] Production
+- Reviewer name: ___________________
+- Approval authority: _______________
+
+### 13.2 Technical Readiness (must all be YES)
+- [ ] `./scripts/check.sh` passes.
+- [ ] `pytest -q --cov=src/ai_investing --cov-report=term-missing` passes.
+- [ ] `/health` returns 200.
+- [ ] `/simulate_tick` without API key returns 401.
+- [ ] `/simulate_tick` with valid API key returns 200.
+- [ ] `/dashboard/summary` with valid API key returns 200.
+- [ ] Current working tree is clean (`git status`).
+- [ ] Tag exists for this release candidate (e.g. `preflight-go-YYYY-MM-DD`).
+
+### 13.3 Security & Access Controls
+- [ ] `AI_API_KEY` set securely (not committed to git).
+- [ ] `.env` and local artifacts ignored by git.
+- [ ] MFA enabled on broker, email, and banking.
+- [ ] API key permissions are least-privilege.
+- [ ] Rate limits enabled and verified.
+
+### 13.4 Legal, Compliance, and Broker Terms
+- [ ] Jurisdictional/legal checks completed.
+- [ ] Broker API terms reviewed for automated execution.
+- [ ] Tax/reporting obligations reviewed.
+- [ ] Restricted products/jurisdictions blocked as required.
+
+### 13.5 Risk & Capital Governance
+- [ ] Max daily loss limit configured and tested.
+- [ ] Max drawdown guardrail configured and tested.
+- [ ] Position/exposure/leverage caps configured and tested.
+- [ ] Kill switch tested (activate/deactivate procedure verified).
+- [ ] Manual approval flow verified for risk-increasing actions.
+- [ ] Capital allocation for this stage approved.
+- [ ] Reserve policy and top-up limits documented.
+
+### 13.6 Incident Readiness
+- [ ] Incident runbook drill completed (pause/reconcile/resume).
+- [ ] Log/audit retention path verified.
+- [ ] Recovery and rollback procedure verified.
+- [ ] On-call/escalation contact path documented.
+
+### 13.7 Stage-Gate Confirmation
+Select current stage and promotion decision:
+- Stage 0 (local simulation): [ ] PASS [ ] FAIL
+- Stage 1 (paper/shadow): [ ] PASS [ ] FAIL
+- Stage 2 (limited capital live): [ ] PASS [ ] FAIL
+- Stage 3 (scaled live): [ ] PASS [ ] FAIL
+
+Promotion decision:
+- [ ] GO to next stage
+- [ ] NO-GO (remain at current stage)
+- Reason: _____________________________________________
+
+### 13.8 Final Decision (single checkbox required)
+- [ ] **GO** — all checks above are complete and evidenced.
+- [ ] **NO-GO** — do not enable live order placement.
+
+Sign-off:
+- Reviewer signature: ______________________  Date: __________
+- Operator signature: ______________________  Date: __________
+
+### 13.9 Evidence Attachment Checklist
+Attach or reference:
+- [ ] Command outputs for validation checks.
+- [ ] Smoke endpoint outputs (status codes + response bodies).
+- [ ] Commit SHA and tag.
+- [ ] Risk setting snapshot.
+- [ ] Incident drill notes.
