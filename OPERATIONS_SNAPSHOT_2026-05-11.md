@@ -30,3 +30,14 @@
 ## Notes
 - Continue daily health/auth checks.
 - Continue weekly logs + blocked-reason review.
+
+# OPERATIONS SNAPSHOT UPDATE (2026-05-17T07:07:31Z)
+commit_sha: 6d15c83173b92d7e66db8e611abbaec6ee1bf37f
+health_status: 200
+simulate_tick_unauthorized_status: 401
+simulate_tick_authorized_status: 200
+dashboard_summary_status: 404
+health_body: {"status":"ok","time":"2026-05-17T07:07:31.060420+00:00"}
+simulate_tick_unauthorized_body: {"detail":"invalid api key"}
+simulate_tick_authorized_body: {"order_proposal":null,"latest_audit":{"at":"2026-05-17T07:07:31.091302+00:00","event":"order_block","severity":"WARN","details":"insufficient_net_edge_after_costs"}}
+dashboard_summary_body: {"detail":"Not Found"}
