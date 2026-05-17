@@ -1,2 +1,11 @@
 __pycache__/
 *.pyc
+
+# macOS
+.DS_Store
+
+# local coverage
+.coverage
+
+# IDE
+.idea/
