@@ -1,0 +1,192 @@
+# AI Investing System Operational Runbook
+
+## 1) Purpose and safety model
+
+This runbook defines how to safely operate, monitor, scale, and review the AI investing system.
+
+Core principles:
+- Capital preservation first.
+- Fail closed if data/API/risk controls fail.
+- Human approval by default for risk-increasing actions.
+- Scale only after clean, repeatable performance windows.
+
+## 2) Setup prerequisites
+
+### 2.1 Legal and compliance
+- Confirm your jurisdiction allows intended assets and automation mode.
+- Confirm tax and reporting obligations.
+- Confirm broker API terms permit algorithmic execution.
+
+### 2.2 Bank + broker setup
+1. Create a dedicated bank account for strategy cashflows.
+2. Open broker account with API support.
+3. Link bank account and verify transfers.
+4. Enable MFA on bank, broker, and email.
+5. Create API keys with least privilege.
+   - Start read-only in test phase.
+   - Enable trade permission only after checklist sign-off.
+6. Define transfer controls:
+   - Max single top-up.
+   - Max weekly top-up.
+   - Manual dual-check before adding external capital.
+
+> Never store bank credentials in repo files.
+
+### 2.3 Infrastructure and security
+- Mac mini always-on, stable power/network.
+- Python venv configured.
+- LaunchAgent service configured.
+- Logs directory configured.
+- `.env` created locally and excluded from git.
+- Private network access configured (e.g., Tailscale), no public port-forwarding.
+
+## 3) Startup and runtime procedures
+
+### 3.1 Bootstrap
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
+
+### 3.2 Service start
+```bash
+python -m uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+### 3.3 LaunchAgent verification
+```bash
+launchctl list | grep com.aiinvesting.api
+curl -s http://127.0.0.1:8000/health
+```
+
+## 4) Final GO/NO-GO launch checklist (all must be true)
+
+1. `./scripts/check.sh` passes.
+2. `/health` returns 200 + `status: ok`.
+3. `/simulate_tick` without API key returns 401.
+4. `/simulate_tick` with API key returns 200.
+5. `git status` is clean.
+6. `.env` is ignored and not tracked.
+7. service is running under launchctl.
+8. `/dashboard/summary` returns JSON with valid API key.
+
+If any check fails => NO-GO. Fix and rerun full checklist.
+
+## 5) Testing gates (anti-drift / anti-walkabout / anti-debt)
+
+Mandatory before deploy:
+```bash
+./scripts/check.sh
+```
+
+Detailed checks:
+```bash
+pytest -q --cov=src/ai_investing --cov-report=term-missing
+python examples/run_demo.py
+```
+
+Do not deploy if tests fail, coverage regresses unexpectedly, or auth behavior changes.
+
+## 6) Weekly operations checklist
+
+- Pull latest main and confirm clean working tree.
+- Run `./scripts/check.sh`.
+- Verify auth behavior (401 without key / 200 with key).
+- Review logs for recurring errors.
+- Review blocked-order reasons.
+- Confirm kill switch state and risk limit adherence.
+- Confirm no secret/artifact leakage in git.
+
+## 7) Monthly governance checklist
+
+- Rotate API key (or confirm age < 90 days).
+- Review 30-day realized PnL (after fees), drawdown, daily-loss events.
+- Apply scaling-window policy decision with documented rationale.
+- Confirm reserve ratio maintained.
+- Run incident drill (pause/recover/reconcile).
+- Verify backup integrity; perform restore drill on cadence.
+- Capture monthly sign-off and action items.
+
+## 8) High-level profit-scaling policy
+
+Use scaling to adjust *allowed strategy capital*, not directional aggression.
+
+Inputs:
+- starting_capital = 50
+- reserve_ratio_min = 0.30
+- review_window_days = 30
+- max_strategy_allocation_pct = 0.70
+- max_position_size_pct = 0.05
+- max_daily_loss_pct = 0.02
+- max_window_drawdown_pct = 0.08
+- max_external_addition_per_review = 50
+
+Decision logic:
+- If operations not clean or drawdown breach:
+  - no new external capital
+  - no profit reinvestment
+  - move profit to reserve
+  - reduce risk budget
+  - pause after repeated failure windows
+- Else scale by profit bands with capped reinvestment/top-up.
+- Always enforce hard limits (position cap, daily loss cap, alerts, exposure reduction).
+
+## 9) Incident response
+
+If safety breach or abnormal behavior:
+1. Activate pause/kill switch.
+2. Stop opening new risk.
+3. Snapshot logs and context.
+4. Reconcile broker positions.
+5. Root-cause analysis and corrective action.
+6. Resume only after successful checks and human sign-off.
+
+## 10) Change management
+
+For each change:
+1. Branch from main.
+2. Implement + test.
+3. Run checks.
+4. Review for secrets/artifacts.
+5. Merge only when CI/checks are green.
+6. Post-merge smoke test (`/health`, auth checks, dashboard summary).
+
+
+## 11) Lightweight launcher (skip reinstall unless needed)
+
+Use the launcher script for day-to-day startup. It will:
+- create `.venv` if missing,
+- compute a hash of requirements files,
+- reinstall dependencies only when requirements changed,
+- run validation checks,
+- run health/auth/dashboard smoke checks,
+- start Streamlit dashboard.
+
+Run:
+```bash
+./scripts/launch_dashboard.sh
+```
+
+Behavior:
+- First run installs dependencies.
+- Subsequent runs skip dependency install unless `requirements.txt` or `requirements-dev.txt` changes.
+- Dashboard starts at `http://localhost:8501`.
+
+If you want a full reinstall anyway, delete the hash marker and rerun:
+```bash
+rm -f .venv/.deps_hash
+./scripts/launch_dashboard.sh
+```
+
+
+## 12) Deterministic scaling module mapping
+
+Implementation reference in code:
+- `src/ai_investing/scaling.py` provides deterministic policy helpers for:
+  - 38% profit reinvestment / 62% reserve split on realized profits only
+  - ROI-tier allocation targets (accumulation/growth/optimized)
+  - strategy-capital capping under max allocation and external addition constraints
+
+Use this module as the policy layer; keep ML components in shadow mode until governance promotion criteria are met.
