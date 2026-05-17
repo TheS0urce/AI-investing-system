@@ -269,3 +269,44 @@ Attach or reference:
 - [ ] Commit SHA and tag.
 - [ ] Risk setting snapshot.
 - [ ] Incident drill notes.
+
+
+---
+
+## 14) Day-0 Launch Checklist (10 Minutes) — First Live Trades
+
+Use this immediately before enabling first live trades.
+If any step fails, mark **NO-GO** and do not proceed.
+
+### 14.1 T-10 to T-8 min: Environment + Repo Integrity
+1. Activate project environment:
+   `cd "/Users/michielburger/Claude Code/AI-investing-system" && source .venv/bin/activate`
+2. Confirm clean git state and known-good commit/tag:
+   `git status --short && git rev-parse --short HEAD && git tag --points-at HEAD`
+
+### 14.2 T-8 to T-6 min: Validation Gate
+`./scripts/check.sh && python -m pytest -q --cov=src/ai_investing --cov-report=term-missing`
+
+### 14.3 T-6 to T-4 min: Secrets + Policy Gate
+`python -c "import os; print('AI_API_KEY set:', bool(os.getenv('AI_API_KEY')))"`
+
+### 14.4 T-4 to T-2 min: API Smoke Gate
+`curl -i http://127.0.0.1:8000/health`
+`curl -i -X POST http://127.0.0.1:8000/simulate_tick -H "Content-Type: application/json" -d '{}'`
+`curl -i -X POST http://127.0.0.1:8000/simulate_tick -H "Content-Type: application/json" -H "X-API-Key: $AI_API_KEY" -d '{}'`
+`curl -i http://127.0.0.1:8000/dashboard/summary -H "X-API-Key: $AI_API_KEY"`
+
+Pass criteria: 200 / 401 / 200 / 200.
+
+### 14.5 T-2 to T-0 min: Final GO/NO-GO
+- Initial live allocation confirmed: **$100**
+- Risk caps reviewed
+- Kill-switch tested
+- Incident/log path confirmed
+
+Decision: GO / NO-GO
+
+### 14.6 Post-Launch (First 30 Minutes)
+- Monitor audit output
+- Do not increase size
+- If abnormal: kill switch, stop risk, capture logs, reconcile
