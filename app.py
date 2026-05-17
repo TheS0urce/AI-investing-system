@@ -1,11 +1,14 @@
-from __future__ import annotations
-
 import os
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+from starlette.responses import JSONResponse
 
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, PortfolioState
@@ -14,16 +17,23 @@ from src.ai_investing.system import InvestingSystem
 
 load_dotenv()
 
-app = FastAPI(title="AI Investing System", version="0.2.0")
+app = FastAPI(title="AI Investing System", version="0.2.1")
+
+DEFAULT_RATE = os.getenv("AI_RATE_LIMIT_PER_MINUTE", "60")
+
+limiter = Limiter(key_func=get_remote_address, default_limits=[f"{DEFAULT_RATE}/minute"])
+app.state.limiter = limiter
+app.add_middleware(SlowAPIMiddleware)
 
 
-def _require_api_key(x_api_key: str | None) -> None:
-    expected = os.getenv("AI_API_KEY", "")
-    if not expected:
-        # Service is up, but protected routes are unavailable until key is configured.
-        raise HTTPException(status_code=503, detail="api_key_not_configured")
-    if x_api_key != expected:
-        raise HTTPException(status_code=401, detail="unauthorized")
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(status_code=429, content={"detail": "rate limit exceeded"})
+
+
+config = SystemConfig()
+strategy = SimpleMomentumStrategy()
+system = InvestingSystem(config=config, strategy=strategy)
 
 
 class TickRequest(BaseModel):
@@ -40,16 +50,23 @@ class TickRequest(BaseModel):
     consecutive_losses: int = 1
 
 
+def require_api_key(x_api_key: str | None):
+    expected = os.getenv("AI_API_KEY", "")
+    if not expected:
+        raise HTTPException(status_code=503, detail="api_key_not_configured")
+    if x_api_key != expected:
+        raise HTTPException(status_code=401, detail="invalid api key")
+
+
 @app.get("/health")
-def health() -> dict[str, str]:
+def health():
     return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
 
 
 @app.post("/simulate_tick")
-def simulate_tick(req: TickRequest, x_api_key: str | None = Header(default=None)) -> dict:
-    _require_api_key(x_api_key)
-
-    system = InvestingSystem(config=SystemConfig(), strategy=SimpleMomentumStrategy())
+@limiter.limit("20/minute")
+def simulate_tick(request: Request, req: TickRequest, x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
 
     market = MarketSnapshot(
         symbol=req.symbol,
@@ -72,19 +89,15 @@ def simulate_tick(req: TickRequest, x_api_key: str | None = Header(default=None)
     order = system.process_tick(market, portfolio)
 
     return {
-        "order_proposal": None
-        if order is None
-        else {
+        "order_proposal": None if order is None else {
             "symbol": order.symbol,
-            "side": order.side.value,
+            "side": str(order.side.value),
             "quantity": order.quantity,
             "limit_price": order.limit_price,
             "expected_edge_bps": order.expected_edge_bps,
             "reason": order.reason,
         },
-        "latest_audit": None
-        if not system.audit_log
-        else {
+        "latest_audit": None if not system.audit_log else {
             "at": system.audit_log[-1].at.isoformat(),
             "event": system.audit_log[-1].event,
             "severity": system.audit_log[-1].severity,
@@ -94,18 +107,33 @@ def simulate_tick(req: TickRequest, x_api_key: str | None = Header(default=None)
 
 
 @app.get("/dashboard/summary")
-def dashboard_summary(x_api_key: str | None = Header(default=None)) -> dict:
-    _require_api_key(x_api_key)
+def dashboard_summary(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    latest_audit = system.audit_log[-1] if system.audit_log else None
     return {
         "status": "ok",
-        "manual_approval_required": True,
-        "autonomous_execution": False,
-        "risk_mode": "safety_first",
+        "manual_approval_required": config.policy.require_manual_approval,
+        "autonomous_execution": config.policy.autonomous_execution,
+        "kill_switch": config.policy.kill_switch,
+        "latest_audit": None if not latest_audit else {
+            "at": latest_audit.at.isoformat(),
+            "event": latest_audit.event,
+            "severity": latest_audit.severity,
+            "details": latest_audit.details,
+        },
     }
 
 
 @app.get("/audit")
-def audit(x_api_key: str | None = Header(default=None)) -> list[dict]:
-    _require_api_key(x_api_key)
-    # Stateless endpoint (new system per request) => no accumulated history by design.
-    return []
+@limiter.limit("30/minute")
+def audit(request: Request, x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return [
+        {
+            "at": e.at.isoformat(),
+            "event": e.event,
+            "severity": e.severity,
+            "details": e.details,
+        }
+        for e in system.audit_log[-200:]
+    ]
