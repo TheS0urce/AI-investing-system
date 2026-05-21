@@ -52,14 +52,28 @@ pip install -r requirements-dev.txt
 
 ### 3.2 Service start
 ```bash
-python -m uvicorn app:app --host 0.0.0.0 --port 8000
+./scripts/launch_dashboard.sh
 ```
 
 ### 3.3 LaunchAgent verification
+Install the API as a user LaunchAgent after the local launcher has passed once:
+```bash
+./scripts/install_launch_agent.sh
+```
+
+Verify:
 ```bash
 launchctl list | grep com.aiinvesting.api
-curl -s http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8001/health
+curl -s http://127.0.0.1:8001/dashboard/summary -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
+
+Stop/remove the persistent API service:
+```bash
+./scripts/uninstall_launch_agent.sh
+```
+
+The dashboard remains an operator UI. Start it when needed with `./scripts/launch_dashboard.sh`, or open `http://localhost:8501` if it is already running.
 
 ## 4) Final GO/NO-GO launch checklist (all must be true)
 
@@ -172,6 +186,7 @@ Run:
 Behavior:
 - First run installs dependencies.
 - Subsequent runs skip dependency install unless `requirements.txt` or `requirements-dev.txt` changes.
+- API defaults to `http://127.0.0.1:8001`.
 - Dashboard starts at `http://localhost:8501`.
 
 If you want a full reinstall anyway, delete the hash marker and rerun:
