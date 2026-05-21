@@ -4,6 +4,10 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_DIR"
 
+API_HOST="${AI_API_HOST:-127.0.0.1}"
+API_PORT="${AI_API_PORT:-8001}"
+API_BASE="http://${API_HOST}:${API_PORT}"
+
 REQ_FILES=(requirements.txt)
 if [[ -f requirements-dev.txt ]]; then
   REQ_FILES+=(requirements-dev.txt)
@@ -25,50 +29,87 @@ if [[ -f "$DEPS_HASH_FILE" ]]; then
 fi
 
 if [[ "$NEW_HASH" != "$OLD_HASH" ]]; then
-  echo "==> Dependency set changed (or first run). Installing dependencies..."
+  echo "==> Installing dependencies"
   python -m pip install --upgrade pip
-  pip install -r requirements.txt
+  python -m pip install -r requirements.txt
   if [[ -f requirements-dev.txt ]]; then
-    pip install -r requirements-dev.txt
+    python -m pip install -r requirements-dev.txt
   fi
-  pip install streamlit requests python-dotenv slowapi uvicorn fastapi || true
+  python -m pip install fastapi uvicorn slowapi python-dotenv streamlit requests
   echo "$NEW_HASH" > "$DEPS_HASH_FILE"
 else
-  echo "==> Dependencies unchanged. Skipping reinstall."
+  echo "==> Dependencies unchanged"
 fi
 
 if [[ ! -f .env ]]; then
-  echo "==> Creating .env with generated API key"
-  KEY="$(python - <<'PY'
-import secrets
-print(secrets.token_urlsafe(48))
-PY
-)"
-  cat > .env <<EOT
-AI_API_KEY=$KEY
-AI_RATE_LIMIT_PER_MINUTE=60
-EOT
+  echo "==> Creating local .env"
+  KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
+  {
+    echo "AI_API_KEY=$KEY"
+    echo "AI_RATE_LIMIT_PER_MINUTE=60"
+  } > .env
 fi
 
-export AI_API_BASE="http://127.0.0.1:8000"
-export AI_API_KEY="$(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+set -a
+source .env
+set +a
 
-if [[ -f ./scripts/check.sh ]]; then
-  echo "==> Running validation checks"
-  ./scripts/check.sh
+export AI_API_BASE="$API_BASE"
+export AI_API_KEY
+export AI_RATE_LIMIT_PER_MINUTE="${AI_RATE_LIMIT_PER_MINUTE:-60}"
+
+echo "==> Running validation checks"
+./scripts/check.sh
+
+API_PID=""
+if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
+  echo "==> API already running at $API_BASE"
+  AUTH_STATUS="$(curl -s -o /dev/null -w '%{http_code}' "$API_BASE/dashboard/summary" -H "X-API-Key: $AI_API_KEY")"
+  if [[ "$AUTH_STATUS" != "200" ]]; then
+    echo "Existing API rejected the key from .env." >&2
+    echo "Stop the existing API process, then rerun ./scripts/launch_dashboard.sh." >&2
+    echo "If you intentionally want to keep it running, restart this launcher with the same AI_API_KEY." >&2
+    exit 1
+  fi
+else
+  echo "==> Starting API at $API_BASE"
+  python -m uvicorn app:app --host "$API_HOST" --port "$API_PORT" &
+  API_PID="$!"
+
+  for _ in {1..30}; do
+    if curl -fsS "$API_BASE/health" >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
 fi
+
+cleanup() {
+  if [[ -n "$API_PID" ]]; then
+    kill "$API_PID" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
 
 echo "==> Health/auth smoke checks"
-curl -s http://127.0.0.1:8000/health || true
-echo
-curl -i -X POST http://127.0.0.1:8000/simulate_tick -H "Content-Type: application/json" -d '{}' || true
-echo
-curl -s -X POST http://127.0.0.1:8000/simulate_tick -H "Content-Type: application/json" -H "X-API-Key: $AI_API_KEY" -d '{}' || true
+curl -fsS "$API_BASE/health"
 echo
 
-echo "==> Dashboard endpoint check"
-curl -s http://127.0.0.1:8000/dashboard/summary -H "X-API-Key: $AI_API_KEY" || true
+UNAUTH_STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$API_BASE/simulate_tick" -H "Content-Type: application/json" -d '{}')"
+if [[ "$UNAUTH_STATUS" != "401" ]]; then
+  echo "Expected unauthenticated /simulate_tick to return 401, got $UNAUTH_STATUS" >&2
+  exit 1
+fi
+echo "Unauthenticated simulate_tick returned 401"
+
+curl -fsS -X POST "$API_BASE/simulate_tick" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $AI_API_KEY" \
+  -d '{"cash":100,"equity":100,"peak_equity":100,"daily_pnl":0}'
+echo
+
+curl -fsS "$API_BASE/dashboard/summary" -H "X-API-Key: $AI_API_KEY"
 echo
 
 echo "==> Starting Streamlit dashboard at http://localhost:8501"
-exec streamlit run dashboard.py --server.port 8501
+python -m streamlit run dashboard.py --server.port 8501

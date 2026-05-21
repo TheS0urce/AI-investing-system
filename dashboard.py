@@ -12,52 +12,69 @@ st.title("AI Investing Operations Dashboard")
 
 col1, col2, col3 = st.columns(3)
 
-# Health
-health = requests.get(f"{API_BASE}/health", timeout=5).json()
+health = {}
+try:
+    health = requests.get(f"{API_BASE}/health", timeout=5).json()
+except Exception as e:
+    st.error(f"Health endpoint unavailable: {e}")
+
 col1.metric("Service Status", health.get("status", "unknown"))
 col1.caption(health.get("time", ""))
 
-# Summary
+summary = None
 try:
-    summary = requests.get(f"{API_BASE}/dashboard/summary", headers=headers, timeout=5).json()
-    col2.metric("Equity", f"{summary['risk']['equity']:.2f}")
-    col3.metric("30D Drawdown", f"{summary['risk']['rolling_30d_drawdown_pct']*100:.2f}%")
+    response = requests.get(f"{API_BASE}/dashboard/summary", headers=headers, timeout=5)
+    response.raise_for_status()
+    summary = response.json()
+    col2.metric("Manual Approval", "Required" if summary["manual_approval_required"] else "Off")
+    col3.metric("Autonomous", "On" if summary["autonomous_execution"] else "Off")
 except Exception as e:
+    col2.metric("Manual Approval", "Unknown")
+    col3.metric("Autonomous", "Unknown")
     st.warning(f"Summary unavailable: {e}")
-    summary = None
 
 st.divider()
 
 left, right = st.columns(2)
 
 with left:
-    st.subheader("Risk Snapshot")
-    try:
-        risk = requests.get(f"{API_BASE}/dashboard/risk", headers=headers, timeout=5).json()
-        st.json(risk)
-    except Exception as e:
-        st.error(f"Risk endpoint error: {e}")
+    st.subheader("System Summary")
+    if summary:
+        st.json(summary)
+    else:
+        st.info("Summary will appear after the API key is configured.")
 
 with right:
-    st.subheader("Scaling Window Decision")
-    try:
-        scaling = requests.get(f"{API_BASE}/dashboard/scaling-window", headers=headers, timeout=5).json()
-        st.json(scaling)
-    except Exception as e:
-        st.error(f"Scaling endpoint error: {e}")
-
-st.divider()
-st.subheader("Governance")
-try:
-    governance = requests.get(f"{API_BASE}/dashboard/governance", headers=headers, timeout=5).json()
-    st.json(governance)
-except Exception as e:
-    st.error(f"Governance endpoint error: {e}")
+    st.subheader("Day-0 Tick")
+    cash = st.number_input("Cash", min_value=0.0, value=100.0, step=10.0)
+    equity = st.number_input("Equity", min_value=0.0, value=100.0, step=10.0)
+    peak_equity = st.number_input("Peak equity", min_value=0.0, value=100.0, step=10.0)
+    daily_pnl = st.number_input("Daily PnL", value=0.0, step=1.0)
+    if st.button("Run Shadow Tick"):
+        payload = {
+            "cash": cash,
+            "equity": equity,
+            "peak_equity": peak_equity,
+            "daily_pnl": daily_pnl,
+        }
+        try:
+            result = requests.post(
+                f"{API_BASE}/simulate_tick",
+                headers={**headers, "Content-Type": "application/json"},
+                json=payload,
+                timeout=5,
+            )
+            result.raise_for_status()
+            st.json(result.json())
+        except Exception as e:
+            st.error(f"Simulation endpoint error: {e}")
 
 st.divider()
 st.subheader("Recent Audit")
 try:
-    audit = requests.get(f"{API_BASE}/dashboard/audit", headers=headers, timeout=5).json()
+    response = requests.get(f"{API_BASE}/audit", headers=headers, timeout=5)
+    response.raise_for_status()
+    audit = response.json()
     st.json(audit)
 except Exception as e:
     st.error(f"Audit endpoint error: {e}")
