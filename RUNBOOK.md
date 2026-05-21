@@ -75,6 +75,19 @@ Stop/remove the persistent API service:
 
 The dashboard remains an operator UI. Start it when needed with `./scripts/launch_dashboard.sh`, or open `http://localhost:8501` if it is already running.
 
+### 3.4 Mac app launchers
+Create clickable Mac launchers in `~/Applications`:
+```bash
+./scripts/build_macos_apps.sh
+```
+
+Created apps:
+- `AI Investing Health.app` checks `http://127.0.0.1:8001/health`.
+- `AI Investing Dashboard.app` starts the dashboard launcher in Terminal.
+- `AI Investing Stop API.app` confirms, then removes the persistent LaunchAgent service.
+
+The dashboard launcher Terminal should remain open while the dashboard is in use.
+
 ## 4) Final GO/NO-GO launch checklist (all must be true)
 
 1. `./scripts/check.sh` passes.
