@@ -32,6 +32,7 @@ Trigger phrase: **Let's continue**
 - Strategy preview can size from read-only paper account state
 - Dashboard real-time paper preview controls
 - Paper watch-mode tick and in-memory watch history
+- Durable paper watch history in `logs/paper_watch_history.jsonl`
 - LaunchAgent restarted with paper market-data endpoints live
 
 ## Evidence Files
@@ -62,9 +63,9 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" -H "X-API-Key
 
 Continue real-time paper trading, not live trading:
 
-1. Add durable watch history storage/export instead of in-memory-only history.
-2. Improve strategy signal quality before any live trading discussion.
-3. Add dashboard display for watch-mode history and blocked/proposed actions.
+1. Improve strategy signal quality before any live trading discussion.
+2. Add dashboard display for watch-mode history and blocked/proposed actions.
+3. Add CSV/JSON export for watch history if needed for review.
 4. Keep paper submit manual-only behind exact confirmation phrase.
 5. Run paper submit/reconcile/cancel drill again.
 

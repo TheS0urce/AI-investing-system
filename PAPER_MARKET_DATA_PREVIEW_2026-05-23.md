@@ -93,6 +93,14 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" \
 
 Result: returned the recorded read-only paper watch tick.
 
+Durable watch history:
+
+```bash
+wc -l logs/paper_watch_history.jsonl
+```
+
+Result after clean smoke test: `1`.
+
 ## Safety Notes
 
 - No live credentials were added.
@@ -100,3 +108,4 @@ Result: returned the recorded read-only paper watch tick.
 - The market data adapter is read-only.
 - The strategy preview endpoint does not call the paper submit adapter.
 - Watch mode records previews only and does not call the paper submit adapter.
+- Watch history is persisted as local gitignored JSONL runtime data.

@@ -280,6 +280,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" \
 ```
 
 Watch mode records what the strategy would have done. It does not submit orders.
+History is persisted locally to `logs/paper_watch_history.jsonl`, which is gitignored runtime data.
 
 Paper order preview is safe to inspect because it does not submit orders:
 ```bash

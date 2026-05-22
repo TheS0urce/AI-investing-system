@@ -1,5 +1,7 @@
 import os
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -32,6 +34,7 @@ load_dotenv()
 app = FastAPI(title="AI Investing System", version="0.2.1")
 
 DEFAULT_RATE = os.getenv("AI_RATE_LIMIT_PER_MINUTE", "60")
+WATCH_HISTORY_PATH = Path(os.getenv("AI_WATCH_HISTORY_PATH", "logs/paper_watch_history.jsonl"))
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[f"{DEFAULT_RATE}/minute"])
 app.state.limiter = limiter
@@ -185,6 +188,30 @@ def latest_audit_payload():
         "severity": latest.severity,
         "details": latest.details,
     }
+
+
+def append_watch_event(event: dict):
+    WATCH_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with WATCH_HISTORY_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+
+
+def read_watch_events(limit: int) -> list[dict]:
+    if not WATCH_HISTORY_PATH.exists():
+        return []
+    events: list[dict] = []
+    with WATCH_HISTORY_PATH.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            raw = line.strip()
+            if not raw:
+                continue
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                events.append(payload)
+    return events[-limit:]
 
 
 def run_paper_strategy_preview(
@@ -573,6 +600,10 @@ def broker_paper_watch_tick(
     history = getattr(app.state, "paper_watch_history", [])
     history.append(event)
     app.state.paper_watch_history = history[-200:]
+    try:
+        append_watch_event(event)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"watch_history_write_failed:{exc}") from exc
     return event
 
 
@@ -586,5 +617,8 @@ def broker_paper_watch_history(
     require_api_key(x_api_key)
     if limit <= 0 or limit > 200:
         raise HTTPException(status_code=400, detail="limit_must_be_between_1_and_200")
+    disk_history = read_watch_events(limit)
+    if disk_history:
+        return disk_history
     history = getattr(app.state, "paper_watch_history", [])
     return history[-limit:]
