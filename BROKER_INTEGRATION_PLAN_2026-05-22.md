@@ -64,6 +64,14 @@ ALPACA_PAPER_SECRET_KEY=replace_me
 ALPACA_PAPER_BASE_URL=https://paper-api.alpaca.markets
 ```
 
+When ready, configure local paper credentials with:
+
+```bash
+./scripts/configure_alpaca_paper.sh
+./scripts/install_launch_agent.sh
+./scripts/broker_readiness.sh
+```
+
 ## NO-GO Conditions
 
 Do not proceed to live broker routing if any are true:

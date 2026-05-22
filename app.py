@@ -38,6 +38,8 @@ config = SystemConfig(
         "mode": os.getenv("BROKER_MODE", "none"),
         "live_enabled": os.getenv("BROKER_LIVE_ENABLED", "false").lower() == "true",
         "paper_base_url": os.getenv("ALPACA_PAPER_BASE_URL"),
+        "paper_api_key_present": bool(os.getenv("ALPACA_PAPER_API_KEY")),
+        "paper_secret_key_present": bool(os.getenv("ALPACA_PAPER_SECRET_KEY")),
     }
 )
 strategy = SimpleMomentumStrategy()

@@ -233,6 +233,12 @@ Required local readiness check:
 ./scripts/broker_readiness.sh
 ```
 
+Configure paper credentials only after a broker paper account exists:
+```bash
+./scripts/configure_alpaca_paper.sh
+./scripts/install_launch_agent.sh
+```
+
 This deployment remains **NO-GO for live broker routing** until a paper-only adapter is implemented, tested, and signed off.
 
 ---

@@ -38,7 +38,7 @@ def test_broker_readiness_requires_paper_base_url():
     assert status.reason == "paper_base_url_not_configured"
 
 
-def test_broker_readiness_allows_alpaca_paper_config_only():
+def test_broker_readiness_requires_paper_credentials():
     status = broker_readiness(
         BrokerConfig(
             provider="alpaca",
@@ -47,6 +47,22 @@ def test_broker_readiness_allows_alpaca_paper_config_only():
             paper_base_url="https://paper-api.alpaca.markets",
         )
     )
+    assert not status.ready
+    assert status.status == "ALPACA-PAPER-NOT-READY"
+    assert status.reason == "paper_credentials_not_configured"
+
+
+def test_broker_readiness_allows_alpaca_paper_config_only():
+    status = broker_readiness(
+        BrokerConfig(
+            provider="alpaca",
+            mode="paper",
+            live_enabled=False,
+            paper_base_url="https://paper-api.alpaca.markets",
+            paper_api_key_present=True,
+            paper_secret_key_present=True,
+        )
+    )
     assert status.ready
     assert status.status == "ALPACA-PAPER-READY"
-    assert status.reason == "paper_endpoint_configured_live_routing_disabled"
+    assert status.reason == "paper_credentials_present_live_routing_disabled"

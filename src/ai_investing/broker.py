@@ -69,11 +69,21 @@ def broker_readiness(config: BrokerConfig) -> BrokerReadiness:
             reason="paper_base_url_not_configured",
         )
 
+    if not config.paper_api_key_present or not config.paper_secret_key_present:
+        return BrokerReadiness(
+            provider=provider,
+            mode=mode,
+            live_enabled=False,
+            ready=False,
+            status="ALPACA-PAPER-NOT-READY",
+            reason="paper_credentials_not_configured",
+        )
+
     return BrokerReadiness(
         provider=provider,
         mode=mode,
         live_enabled=False,
         ready=True,
         status="ALPACA-PAPER-READY",
-        reason="paper_endpoint_configured_live_routing_disabled",
+        reason="paper_credentials_present_live_routing_disabled",
     )
