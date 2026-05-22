@@ -7,6 +7,19 @@ API_KEY = os.getenv("AI_API_KEY", "")
 
 headers = {"X-API-Key": API_KEY} if API_KEY else {}
 
+
+def order_payload(prefix: str, include_confirm: bool = False) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "symbol": st.text_input("Symbol", value="QQQ", key=f"{prefix}_symbol").upper(),
+        "side": st.segmented_control("Side", ["BUY", "SELL"], default="BUY", key=f"{prefix}_side"),
+        "quantity": st.number_input("Quantity", min_value=0.0, value=0.01, step=0.01, format="%.8f", key=f"{prefix}_qty"),
+        "limit_price": st.number_input("Limit price", min_value=0.0, value=430.0, step=0.01, format="%.2f", key=f"{prefix}_price"),
+        "reason": "dashboard manual paper order",
+    }
+    if include_confirm:
+        payload["confirm"] = st.text_input("Confirmation", value="", key=f"{prefix}_confirm")
+    return payload
+
 st.set_page_config(page_title="AI Investing Ops Dashboard", layout="wide")
 st.title("AI Investing Operations Dashboard")
 
@@ -74,9 +87,64 @@ st.subheader("Broker Status")
 try:
     response = requests.get(f"{API_BASE}/broker/status", headers=headers, timeout=5)
     response.raise_for_status()
-    st.json(response.json())
+    broker_status = response.json()
+    st.json(broker_status)
 except Exception as e:
+    broker_status = None
     st.error(f"Broker status endpoint error: {e}")
+
+st.divider()
+st.subheader("Paper Broker Controls")
+broker_left, broker_right = st.columns(2)
+
+with broker_left:
+    st.subheader("Order Preview")
+    preview_payload = order_payload("preview")
+    if st.button("Preview Paper Order"):
+        try:
+            response = requests.post(
+                f"{API_BASE}/broker/paper/order_preview",
+                headers={**headers, "Content-Type": "application/json"},
+                json=preview_payload,
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Paper preview error: {e}")
+
+with broker_right:
+    st.subheader("Recent Paper Orders")
+    if st.button("Refresh Paper Orders"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/orders",
+                headers=headers,
+                params={"status": "all", "limit": 20},
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Paper orders error: {e}")
+
+with st.expander("Submit Paper Order"):
+    submit_payload = order_payload("submit", include_confirm=True)
+    if st.button("Submit Confirmed Paper Order", type="primary"):
+        if submit_payload.get("confirm") != "SUBMIT_PAPER_ORDER":
+            st.error("Type SUBMIT_PAPER_ORDER to enable paper submission.")
+        else:
+            try:
+                response = requests.post(
+                    f"{API_BASE}/broker/paper/submit_order",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json=submit_payload,
+                    timeout=15,
+                )
+                response.raise_for_status()
+                st.json(response.json())
+            except Exception as e:
+                st.error(f"Paper submit error: {e}")
 
 st.divider()
 st.subheader("Recent Audit")
