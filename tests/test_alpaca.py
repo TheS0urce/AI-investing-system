@@ -60,7 +60,7 @@ def test_alpaca_order_payload_is_paper_limit_day_order():
         "type": "limit",
         "time_in_force": "day",
         "limit_price": "430.13",
-        "extended_hours": "false",
+        "extended_hours": False,
     }
 
 

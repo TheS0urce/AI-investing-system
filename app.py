@@ -10,7 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
-from src.ai_investing.alpaca import alpaca_order_payload
+from src.ai_investing.alpaca import AlpacaPaperCredentials, alpaca_order_payload, submit_paper_order
 from src.ai_investing.broker import broker_readiness
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioState, Side
@@ -68,6 +68,10 @@ class PaperOrderPreviewRequest(BaseModel):
     limit_price: float = Field(gt=0)
     expected_edge_bps: float = 0.0
     reason: str = "manual paper preview"
+
+
+class PaperOrderSubmitRequest(PaperOrderPreviewRequest):
+    confirm: str
 
 
 def require_api_key(x_api_key: str | None):
@@ -188,6 +192,53 @@ def broker_paper_order_preview(req: PaperOrderPreviewRequest, x_api_key: str | N
         "submit_enabled": False,
         "broker_status": broker.status,
         "payload": alpaca_order_payload(order),
+    }
+
+
+@app.post("/broker/paper/submit_order")
+@limiter.limit("5/minute")
+def broker_paper_submit_order(
+    request: Request,
+    req: PaperOrderSubmitRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if req.confirm != "SUBMIT_PAPER_ORDER":
+        raise HTTPException(status_code=400, detail="confirmation_phrase_required")
+
+    broker = broker_readiness(config.broker)
+    if broker.live_enabled:
+        raise HTTPException(status_code=403, detail="live_broker_routing_disabled_for_current_stage")
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+
+    credentials = AlpacaPaperCredentials(
+        api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
+        secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
+        base_url=os.getenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets"),
+    )
+    order = OrderProposal(
+        symbol=req.symbol,
+        side=req.side,
+        quantity=req.quantity,
+        limit_price=req.limit_price,
+        expected_edge_bps=req.expected_edge_bps,
+        reason=req.reason,
+    )
+    try:
+        result = submit_paper_order(credentials, order)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    system._audit("paper_order_submitted", "WARN", f"{result.side} {result.symbol} status={result.status}")
+    return {
+        "submitted": True,
+        "broker_order_id": result.broker_order_id,
+        "client_order_id": result.client_order_id,
+        "status": result.status,
+        "symbol": result.symbol,
+        "side": result.side,
+        "submitted_at": result.submitted_at,
     }
 
 

@@ -78,7 +78,7 @@ def ensure_paper_credentials(credentials: AlpacaPaperCredentials) -> None:
         raise RuntimeError("alpaca_paper_credentials_missing")
 
 
-def alpaca_order_payload(order: OrderProposal) -> dict[str, str]:
+def alpaca_order_payload(order: OrderProposal) -> dict[str, str | bool]:
     if order.quantity <= 0:
         raise ValueError("order_quantity_must_be_positive")
     if order.limit_price <= 0:
@@ -91,7 +91,7 @@ def alpaca_order_payload(order: OrderProposal) -> dict[str, str]:
         "type": "limit",
         "time_in_force": "day",
         "limit_price": f"{order.limit_price:.2f}",
-        "extended_hours": "false",
+        "extended_hours": False,
     }
 
 
@@ -120,7 +120,7 @@ def fetch_paper_account(credentials: AlpacaPaperCredentials, timeout: float = 10
         with urlopen(request, timeout=timeout, context=context) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
-        raise RuntimeError(f"alpaca_account_http_error:{exc.code}") from exc
+        raise RuntimeError(f"alpaca_account_http_error:{exc.code}:{http_error_body(exc)}") from exc
     except URLError as exc:
         raise RuntimeError(f"alpaca_account_network_error:{exc.reason}") from exc
     except json.JSONDecodeError as exc:
@@ -150,10 +150,17 @@ def submit_paper_order(
         with urlopen(request, timeout=timeout, context=context) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except HTTPError as exc:
-        raise RuntimeError(f"alpaca_order_http_error:{exc.code}") from exc
+        raise RuntimeError(f"alpaca_order_http_error:{exc.code}:{http_error_body(exc)}") from exc
     except URLError as exc:
         raise RuntimeError(f"alpaca_order_network_error:{exc.reason}") from exc
     except json.JSONDecodeError as exc:
         raise RuntimeError("alpaca_order_invalid_json") from exc
 
     return paper_order_result_from_payload(payload)
+
+
+def http_error_body(exc: HTTPError) -> str:
+    try:
+        return exc.read().decode("utf-8")[:500]
+    except Exception:
+        return ""

@@ -251,6 +251,14 @@ curl -s -X POST http://127.0.0.1:8001/broker/paper/order_preview \
   -d '{"symbol":"QQQ","side":"BUY","quantity":0.01,"limit_price":430.00}'
 ```
 
+Paper order submission is manual-only and requires an exact confirmation phrase:
+```bash
+curl -s -X POST http://127.0.0.1:8001/broker/paper/submit_order \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)" \
+  -d '{"symbol":"QQQ","side":"BUY","quantity":0.01,"limit_price":430.00,"confirm":"SUBMIT_PAPER_ORDER"}'
+```
+
 ---
 
 ## 13) Live Trading GO/NO-GO Final Sign-off (One-Page Form)
