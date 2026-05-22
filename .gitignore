@@ -12,3 +12,4 @@ __pycache__/
 logs/
 .env
 .venv/
+scripts/macos_apps/icons/

@@ -76,7 +76,7 @@ Stop/remove the persistent API service:
 The dashboard remains an operator UI. Start it when needed with `./scripts/launch_dashboard.sh`, or open `http://localhost:8501` if it is already running.
 
 ### 3.4 Mac app launchers
-Create clickable Mac launchers in `~/Applications`:
+Create clickable Mac launchers in `~/Applications/AI Investment`:
 ```bash
 ./scripts/build_macos_apps.sh
 ```
