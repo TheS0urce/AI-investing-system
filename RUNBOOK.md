@@ -92,13 +92,14 @@ The dashboard launcher Terminal should remain open while the dashboard is in use
 ## 4) Final GO/NO-GO launch checklist (all must be true)
 
 1. `./scripts/check.sh` passes.
-2. `/health` returns 200 + `status: ok`.
-3. `/simulate_tick` without API key returns 401.
-4. `/simulate_tick` with API key returns 200.
-5. `git status` is clean.
-6. `.env` is ignored and not tracked.
-7. service is running under launchctl.
-8. `/dashboard/summary` returns JSON with valid API key.
+2. `./scripts/broker_readiness.sh` returns safe paper/shadow status.
+3. `/health` returns 200 + `status: ok`.
+4. `/simulate_tick` without API key returns 401.
+5. `/simulate_tick` with API key returns 200.
+6. `git status` is clean.
+7. `.env` is ignored and not tracked.
+8. service is running under launchctl.
+9. `/dashboard/summary` returns JSON with valid API key.
 
 If any check fails => NO-GO. Fix and rerun full checklist.
 
@@ -219,6 +220,19 @@ Implementation reference in code:
   - strategy-capital capping under max allocation and external addition constraints
 
 Use this module as the policy layer; keep ML components in shadow mode until governance promotion criteria are met.
+
+## 12.1 Broker integration staging
+
+Broker selection is a separate stage from local deployment.
+
+Default Stage-1 candidate is Alpaca paper trading for US equities/ETFs. Use `BROKER_INTEGRATION_PLAN_2026-05-22.md` as the checklist before adding any broker adapter code.
+
+Required local readiness check:
+```bash
+./scripts/broker_readiness.sh
+```
+
+This deployment remains **NO-GO for live broker routing** until a paper-only adapter is implemented, tested, and signed off.
 
 ---
 
