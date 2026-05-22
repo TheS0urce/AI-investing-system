@@ -2,7 +2,7 @@ import os
 import requests
 import streamlit as st
 
-API_BASE = os.getenv("AI_API_BASE", "http://127.0.0.1:8000")
+API_BASE = os.getenv("AI_API_BASE", "http://127.0.0.1:8001")
 API_KEY = os.getenv("AI_API_KEY", "")
 
 headers = {"X-API-Key": API_KEY} if API_KEY else {}

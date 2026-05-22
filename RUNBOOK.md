@@ -320,10 +320,10 @@ If any step fails, mark **NO-GO** and do not proceed.
 `python -c "import os; print('AI_API_KEY set:', bool(os.getenv('AI_API_KEY')))"`
 
 ### 14.4 T-4 to T-2 min: API Smoke Gate
-`curl -i http://127.0.0.1:8000/health`
-`curl -i -X POST http://127.0.0.1:8000/simulate_tick -H "Content-Type: application/json" -d '{}'`
-`curl -i -X POST http://127.0.0.1:8000/simulate_tick -H "Content-Type: application/json" -H "X-API-Key: $AI_API_KEY" -d '{}'`
-`curl -i http://127.0.0.1:8000/dashboard/summary -H "X-API-Key: $AI_API_KEY"`
+`curl -i http://127.0.0.1:8001/health`
+`curl -i -X POST http://127.0.0.1:8001/simulate_tick -H "Content-Type: application/json" -d '{}'`
+`curl -i -X POST http://127.0.0.1:8001/simulate_tick -H "Content-Type: application/json" -H "X-API-Key: $AI_API_KEY" -d '{}'`
+`curl -i http://127.0.0.1:8001/dashboard/summary -H "X-API-Key: $AI_API_KEY"`
 
 Pass criteria: 200 / 401 / 200 / 200.
 
