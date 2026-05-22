@@ -187,6 +187,18 @@ with market_left:
 with market_right:
     preview_cash = st.number_input("Preview cash", min_value=0.0, value=100.0, step=10.0)
     preview_equity = st.number_input("Preview equity", min_value=0.0, value=100.0, step=10.0)
+    use_paper_account = st.checkbox("Use paper account state", value=True)
+    if st.button("Fetch Paper Account"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/account",
+                headers=headers,
+                timeout=15,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Paper account error: {e}")
     if st.button("Run Paper Strategy Preview"):
         try:
             response = requests.get(
@@ -200,6 +212,7 @@ with market_right:
                     "peak_equity": preview_equity,
                     "daily_pnl": 0,
                     "consecutive_losses": 0,
+                    "use_paper_account": use_paper_account,
                 },
                 timeout=15,
             )

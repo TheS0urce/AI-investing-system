@@ -15,6 +15,17 @@ class FakeOrderResult:
     submitted_at: str | None = "2026-05-22T00:00:00Z"
 
 
+@dataclass(frozen=True)
+class FakeAccountSummary:
+    status: str = "ACTIVE"
+    currency: str = "USD"
+    buying_power: str = "200000"
+    cash: str = "100000"
+    portfolio_value: str = "100000"
+    pattern_day_trader: bool = False
+    account_number_masked: str | None = "********1234"
+
+
 def client(monkeypatch):
     monkeypatch.setenv("AI_API_KEY", "test-key")
     return TestClient(app.app)
@@ -164,6 +175,33 @@ def test_market_snapshot_endpoint_uses_read_only_market_data(monkeypatch):
     assert called == {"base_url": "https://data.alpaca.markets", "feed": "iex", "symbol": "QQQ"}
 
 
+def test_paper_account_endpoint_returns_read_only_safe_fields(monkeypatch):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+
+    called = {}
+
+    def fake_fetch_account(credentials):
+        called["base_url"] = credentials.base_url
+        return FakeAccountSummary()
+
+    monkeypatch.setattr(app, "fetch_paper_account", fake_fetch_account)
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY", "paper-key")
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY", "paper-secret")
+    monkeypatch.setenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets")
+
+    response = client(monkeypatch).get("/broker/paper/account", headers={"X-API-Key": "test-key"})
+
+    assert response.status_code == 200
+    assert response.json()["mode"] == "read_only"
+    assert response.json()["account"]["account_number_masked"] == "********1234"
+    assert called == {"base_url": "https://paper-api.alpaca.markets"}
+
+
 def test_strategy_preview_does_not_auto_submit(monkeypatch):
     app.config.broker.provider = "alpaca"
     app.config.broker.mode = "paper"
@@ -195,3 +233,37 @@ def test_strategy_preview_does_not_auto_submit(monkeypatch):
     assert payload["mode"] == "paper_preview_only"
     assert payload["auto_submit_enabled"] is False
     assert payload["manual_confirmation_required"] == "SUBMIT_PAPER_ORDER"
+
+
+def test_strategy_preview_can_use_read_only_paper_account(monkeypatch):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+
+    def fake_fetch_market(credentials, symbol, default_volatility_30d):
+        return app.MarketSnapshot(
+            symbol=symbol,
+            price=430.12,
+            spread_bps=2.3,
+            volume_24h=10_000_000,
+            volatility_30d=0.01,
+            timestamp=app.datetime(2026, 5, 22, tzinfo=app.timezone.utc),
+        )
+
+    monkeypatch.setattr(app, "fetch_stock_snapshot", fake_fetch_market)
+    monkeypatch.setattr(app, "fetch_paper_account", lambda credentials: FakeAccountSummary())
+
+    response = client(monkeypatch).get(
+        "/broker/paper/strategy_preview",
+        headers={"X-API-Key": "test-key"},
+        params={"symbol": "QQQ", "use_paper_account": "true"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["portfolio_source"] == "alpaca_paper_account"
+    assert payload["account"]["cash"] == "100000"
+    assert payload["auto_submit_enabled"] is False

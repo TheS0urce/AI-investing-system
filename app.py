@@ -11,10 +11,12 @@ from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
 from src.ai_investing.alpaca import (
+    AlpacaAccountSummary,
     AlpacaMarketDataCredentials,
     AlpacaPaperCredentials,
     alpaca_order_payload,
     cancel_paper_orders,
+    fetch_paper_account,
     fetch_stock_snapshot,
     fetch_paper_orders,
     submit_paper_order,
@@ -112,12 +114,45 @@ def serialize_order(order: OrderProposal | None):
     }
 
 
+def serialize_account(account: AlpacaAccountSummary):
+    return {
+        "status": account.status,
+        "currency": account.currency,
+        "buying_power": account.buying_power,
+        "cash": account.cash,
+        "portfolio_value": account.portfolio_value,
+        "pattern_day_trader": account.pattern_day_trader,
+        "account_number_masked": account.account_number_masked,
+    }
+
+
+def alpaca_paper_credentials() -> AlpacaPaperCredentials:
+    return AlpacaPaperCredentials(
+        api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
+        secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
+        base_url=os.getenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets"),
+    )
+
+
 def alpaca_market_data_credentials(feed: str | None = None) -> AlpacaMarketDataCredentials:
     return AlpacaMarketDataCredentials(
         api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
         secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
         base_url=os.getenv("ALPACA_MARKET_DATA_BASE_URL", "https://data.alpaca.markets"),
         feed=feed or os.getenv("ALPACA_MARKET_DATA_FEED", "iex"),
+    )
+
+
+def portfolio_from_account(account: AlpacaAccountSummary, consecutive_losses: int = 0) -> PortfolioState:
+    equity = float(account.portfolio_value)
+    cash = float(account.cash)
+    return PortfolioState(
+        cash=cash,
+        equity=equity,
+        peak_equity=equity,
+        daily_pnl=0.0,
+        consecutive_losses=consecutive_losses,
+        positions={},
     )
 
 
@@ -226,6 +261,24 @@ def broker_paper_market_snapshot(
     }
 
 
+@app.get("/broker/paper/account")
+@limiter.limit("20/minute")
+def broker_paper_account(request: Request, x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+    try:
+        account = fetch_paper_account(alpaca_paper_credentials())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "source": "alpaca_paper_account",
+        "mode": "read_only",
+        "account": serialize_account(account),
+    }
+
+
 @app.get("/broker/paper/strategy_preview")
 @limiter.limit("20/minute")
 def broker_paper_strategy_preview(
@@ -237,6 +290,7 @@ def broker_paper_strategy_preview(
     peak_equity: float = 1_000.0,
     daily_pnl: float = 0.0,
     consecutive_losses: int = 0,
+    use_paper_account: bool = False,
     x_api_key: str | None = Header(default=None),
 ):
     require_api_key(x_api_key)
@@ -252,20 +306,30 @@ def broker_paper_strategy_preview(
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    portfolio = PortfolioState(
-        cash=cash,
-        equity=equity,
-        peak_equity=peak_equity,
-        daily_pnl=daily_pnl,
-        consecutive_losses=consecutive_losses,
-        positions={},
-    )
+    account = None
+    if use_paper_account:
+        try:
+            account = fetch_paper_account(alpaca_paper_credentials())
+        except RuntimeError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        portfolio = portfolio_from_account(account, consecutive_losses=consecutive_losses)
+    else:
+        portfolio = PortfolioState(
+            cash=cash,
+            equity=equity,
+            peak_equity=peak_equity,
+            daily_pnl=daily_pnl,
+            consecutive_losses=consecutive_losses,
+            positions={},
+        )
     order = system.process_tick(market, portfolio)
     return {
         "mode": "paper_preview_only",
         "auto_submit_enabled": False,
         "manual_confirmation_required": "SUBMIT_PAPER_ORDER",
         "market": serialize_market(market),
+        "portfolio_source": "alpaca_paper_account" if account else "request",
+        "account": None if account is None else serialize_account(account),
         "order_proposal": serialize_order(order),
         "latest_audit": None if not system.audit_log else {
             "at": system.audit_log[-1].at.isoformat(),
@@ -331,11 +395,6 @@ def broker_paper_submit_order(
     if broker.status != "ALPACA-PAPER-READY":
         raise HTTPException(status_code=403, detail=broker.status)
 
-    credentials = AlpacaPaperCredentials(
-        api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
-        secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
-        base_url=os.getenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets"),
-    )
     order = OrderProposal(
         symbol=req.symbol,
         side=req.side,
@@ -345,7 +404,7 @@ def broker_paper_submit_order(
         reason=req.reason,
     )
     try:
-        result = submit_paper_order(credentials, order)
+        result = submit_paper_order(alpaca_paper_credentials(), order)
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -373,13 +432,8 @@ def broker_paper_orders(
     broker = broker_readiness(config.broker)
     if broker.status != "ALPACA-PAPER-READY":
         raise HTTPException(status_code=403, detail=broker.status)
-    credentials = AlpacaPaperCredentials(
-        api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
-        secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
-        base_url=os.getenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets"),
-    )
     try:
-        orders = fetch_paper_orders(credentials, status=status, limit=limit)
+        orders = fetch_paper_orders(alpaca_paper_credentials(), status=status, limit=limit)
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return [
@@ -410,13 +464,8 @@ def broker_paper_cancel_orders(
     if broker.status != "ALPACA-PAPER-READY":
         raise HTTPException(status_code=403, detail=broker.status)
 
-    credentials = AlpacaPaperCredentials(
-        api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
-        secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
-        base_url=os.getenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets"),
-    )
     try:
-        cancelled = cancel_paper_orders(credentials)
+        cancelled = cancel_paper_orders(alpaca_paper_credentials())
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

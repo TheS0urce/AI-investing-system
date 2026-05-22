@@ -14,7 +14,7 @@ Trigger phrase: **Let's continue**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 37 tests
+- Final validation: `./scripts/check.sh` passed with 39 tests
 
 ## Completed Today
 
@@ -28,6 +28,8 @@ Trigger phrase: **Let's continue**
 - Paper order cancellation verified, no open paper orders remain
 - Read-only Alpaca market-data snapshot adapter
 - Real-time paper strategy preview endpoint
+- Read-only paper account endpoint
+- Strategy preview can size from read-only paper account state
 - Dashboard real-time paper preview controls
 - LaunchAgent restarted with paper market-data endpoints live
 
@@ -48,8 +50,9 @@ git status --short --branch
 ./scripts/check.sh
 .venv/bin/python scripts/check_alpaca_market_data.py
 curl -s http://127.0.0.1:8001/dashboard/summary -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/account" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/orders?status=open&limit=20" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
-curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&cash=100&equity=100&peak_equity=100&daily_pnl=0&consecutive_losses=0" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&use_paper_account=true" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
 ## Next Technical Goal
@@ -57,8 +60,8 @@ curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex
 Continue real-time paper trading, not live trading:
 
 1. Add timed polling/watch mode for selected paper symbols.
-2. Add portfolio/account state ingestion for paper preview sizing.
-3. Improve strategy signal quality before any live trading discussion.
+2. Improve strategy signal quality before any live trading discussion.
+3. Add dashboard display for watch-mode history and blocked/proposed actions.
 4. Keep paper submit manual-only behind exact confirmation phrase.
 5. Run paper submit/reconcile/cancel drill again.
 

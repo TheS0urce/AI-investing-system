@@ -248,6 +248,12 @@ Read-only Alpaca market data check:
 .venv/bin/python scripts/check_alpaca_market_data.py
 ```
 
+Fetch the read-only Alpaca paper account summary:
+```bash
+curl -s "http://127.0.0.1:8001/broker/paper/account" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+```
+
 Fetch a read-only paper market snapshot:
 ```bash
 curl -s "http://127.0.0.1:8001/broker/paper/market_snapshot?symbol=QQQ&feed=iex" \
@@ -257,6 +263,12 @@ curl -s "http://127.0.0.1:8001/broker/paper/market_snapshot?symbol=QQQ&feed=iex"
 Run a real-time paper strategy preview without submitting an order:
 ```bash
 curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&cash=100&equity=100&peak_equity=100&daily_pnl=0&consecutive_losses=0" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+```
+
+Run the same preview sized from read-only paper account state:
+```bash
+curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&use_paper_account=true" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
