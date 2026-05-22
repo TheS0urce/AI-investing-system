@@ -70,6 +70,8 @@ When ready, configure local paper credentials with:
 ./scripts/configure_alpaca_paper.sh
 ./scripts/install_launch_agent.sh
 ./scripts/broker_readiness.sh
+python scripts/alpaca_env_sanity.py
+python scripts/check_alpaca_paper_account.py
 ```
 
 ## NO-GO Conditions
