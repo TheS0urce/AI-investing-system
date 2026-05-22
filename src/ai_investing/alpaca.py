@@ -8,6 +8,8 @@ from urllib.request import Request, urlopen
 import json
 import ssl
 
+from .models import OrderProposal
+
 try:
     import certifi
 except ImportError:  # pragma: no cover - optional dependency fallback
@@ -30,6 +32,16 @@ class AlpacaAccountSummary:
     portfolio_value: str
     pattern_day_trader: bool
     account_number_masked: str | None
+
+
+@dataclass(frozen=True)
+class AlpacaPaperOrderResult:
+    broker_order_id: str
+    client_order_id: str | None
+    status: str
+    symbol: str
+    side: str
+    submitted_at: str | None
 
 
 def mask_account_number(account_number: str | None) -> str | None:
@@ -59,7 +71,43 @@ def account_summary_from_payload(payload: dict[str, Any]) -> AlpacaAccountSummar
     )
 
 
+def ensure_paper_credentials(credentials: AlpacaPaperCredentials) -> None:
+    if credentials.base_url.rstrip("/") != "https://paper-api.alpaca.markets":
+        raise RuntimeError("alpaca_paper_only_guard_failed")
+    if not credentials.api_key or not credentials.secret_key:
+        raise RuntimeError("alpaca_paper_credentials_missing")
+
+
+def alpaca_order_payload(order: OrderProposal) -> dict[str, str]:
+    if order.quantity <= 0:
+        raise ValueError("order_quantity_must_be_positive")
+    if order.limit_price <= 0:
+        raise ValueError("order_limit_price_must_be_positive")
+
+    return {
+        "symbol": order.symbol,
+        "qty": f"{order.quantity:.8f}".rstrip("0").rstrip("."),
+        "side": order.side.value.lower(),
+        "type": "limit",
+        "time_in_force": "day",
+        "limit_price": f"{order.limit_price:.2f}",
+        "extended_hours": "false",
+    }
+
+
+def paper_order_result_from_payload(payload: dict[str, Any]) -> AlpacaPaperOrderResult:
+    return AlpacaPaperOrderResult(
+        broker_order_id=str(payload.get("id", "")),
+        client_order_id=payload.get("client_order_id"),
+        status=str(payload.get("status", "unknown")),
+        symbol=str(payload.get("symbol", "")),
+        side=str(payload.get("side", "")),
+        submitted_at=payload.get("submitted_at"),
+    )
+
+
 def fetch_paper_account(credentials: AlpacaPaperCredentials, timeout: float = 10.0) -> AlpacaAccountSummary:
+    ensure_paper_credentials(credentials)
     request = Request(
         f"{credentials.base_url.rstrip('/')}/v2/account",
         headers={
@@ -79,3 +127,33 @@ def fetch_paper_account(credentials: AlpacaPaperCredentials, timeout: float = 10
         raise RuntimeError("alpaca_account_invalid_json") from exc
 
     return account_summary_from_payload(payload)
+
+
+def submit_paper_order(
+    credentials: AlpacaPaperCredentials,
+    order: OrderProposal,
+    timeout: float = 10.0,
+) -> AlpacaPaperOrderResult:
+    ensure_paper_credentials(credentials)
+    request = Request(
+        f"{credentials.base_url.rstrip('/')}/v2/orders",
+        data=json.dumps(alpaca_order_payload(order)).encode("utf-8"),
+        headers={
+            "APCA-API-KEY-ID": credentials.api_key,
+            "APCA-API-SECRET-KEY": credentials.secret_key,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    context = ssl.create_default_context(cafile=certifi.where()) if certifi else ssl.create_default_context()
+    try:
+        with urlopen(request, timeout=timeout, context=context) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise RuntimeError(f"alpaca_order_http_error:{exc.code}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"alpaca_order_network_error:{exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("alpaca_order_invalid_json") from exc
+
+    return paper_order_result_from_payload(payload)

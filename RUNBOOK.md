@@ -243,6 +243,14 @@ python scripts/check_alpaca_paper_account.py
 
 This deployment remains **NO-GO for live broker routing** until a paper-only adapter is implemented, tested, and signed off.
 
+Paper order preview is safe to inspect because it does not submit orders:
+```bash
+curl -s -X POST http://127.0.0.1:8001/broker/paper/order_preview \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)" \
+  -d '{"symbol":"QQQ","side":"BUY","quantity":0.01,"limit_price":430.00}'
+```
+
 ---
 
 ## 13) Live Trading GO/NO-GO Final Sign-off (One-Page Form)

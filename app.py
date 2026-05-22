@@ -10,9 +10,10 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
+from src.ai_investing.alpaca import alpaca_order_payload
 from src.ai_investing.broker import broker_readiness
 from src.ai_investing.config import SystemConfig
-from src.ai_investing.models import MarketSnapshot, PortfolioState
+from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioState, Side
 from src.ai_investing.strategy import SimpleMomentumStrategy
 from src.ai_investing.system import InvestingSystem
 
@@ -58,6 +59,15 @@ class TickRequest(BaseModel):
     peak_equity: float = 1_050.0
     daily_pnl: float = -5.0
     consecutive_losses: int = 1
+
+
+class PaperOrderPreviewRequest(BaseModel):
+    symbol: str = "QQQ"
+    side: Side = Side.BUY
+    quantity: float = Field(gt=0)
+    limit_price: float = Field(gt=0)
+    expected_edge_bps: float = 0.0
+    reason: str = "manual paper preview"
 
 
 def require_api_key(x_api_key: str | None):
@@ -154,6 +164,30 @@ def broker_status(x_api_key: str | None = Header(default=None)):
         "ready": broker.ready,
         "status": broker.status,
         "reason": broker.reason,
+    }
+
+
+@app.post("/broker/paper/order_preview")
+def broker_paper_order_preview(req: PaperOrderPreviewRequest, x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.live_enabled:
+        raise HTTPException(status_code=403, detail="live_broker_routing_disabled_for_current_stage")
+    if config.broker.mode != "paper":
+        raise HTTPException(status_code=403, detail="broker_mode_must_be_paper")
+
+    order = OrderProposal(
+        symbol=req.symbol,
+        side=req.side,
+        quantity=req.quantity,
+        limit_price=req.limit_price,
+        expected_edge_bps=req.expected_edge_bps,
+        reason=req.reason,
+    )
+    return {
+        "submit_enabled": False,
+        "broker_status": broker.status,
+        "payload": alpaca_order_payload(order),
     }
 
 

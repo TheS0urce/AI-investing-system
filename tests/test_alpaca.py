@@ -1,4 +1,15 @@
-from src.ai_investing.alpaca import account_summary_from_payload, decimal_string, mask_account_number
+import pytest
+
+from src.ai_investing.alpaca import (
+    AlpacaPaperCredentials,
+    account_summary_from_payload,
+    alpaca_order_payload,
+    decimal_string,
+    ensure_paper_credentials,
+    mask_account_number,
+    paper_order_result_from_payload,
+)
+from src.ai_investing.models import OrderProposal, Side
 
 
 def test_mask_account_number_keeps_only_last_four():
@@ -29,3 +40,60 @@ def test_account_summary_from_payload_masks_sensitive_fields():
     assert summary.currency == "USD"
     assert summary.buying_power == "100000"
     assert summary.account_number_masked == "*******6789"
+
+
+def test_alpaca_order_payload_is_paper_limit_day_order():
+    payload = alpaca_order_payload(
+        OrderProposal(
+            symbol="QQQ",
+            side=Side.BUY,
+            quantity=0.12345678,
+            limit_price=430.129,
+            expected_edge_bps=10.0,
+            reason="test",
+        )
+    )
+    assert payload == {
+        "symbol": "QQQ",
+        "qty": "0.12345678",
+        "side": "buy",
+        "type": "limit",
+        "time_in_force": "day",
+        "limit_price": "430.13",
+        "extended_hours": "false",
+    }
+
+
+def test_alpaca_order_payload_rejects_invalid_order_values():
+    order = OrderProposal("QQQ", Side.BUY, 0.0, 430.0, 10.0, "test")
+    with pytest.raises(ValueError, match="order_quantity_must_be_positive"):
+        alpaca_order_payload(order)
+
+
+def test_ensure_paper_credentials_blocks_live_url():
+    with pytest.raises(RuntimeError, match="alpaca_paper_only_guard_failed"):
+        ensure_paper_credentials(AlpacaPaperCredentials("key", "secret", "https://api.alpaca.markets"))
+
+
+def test_ensure_paper_credentials_requires_key_and_secret():
+    with pytest.raises(RuntimeError, match="alpaca_paper_credentials_missing"):
+        ensure_paper_credentials(AlpacaPaperCredentials("", "", "https://paper-api.alpaca.markets"))
+
+
+def test_paper_order_result_from_payload_masks_to_safe_fields():
+    result = paper_order_result_from_payload(
+        {
+            "id": "order-123",
+            "client_order_id": "client-123",
+            "status": "accepted",
+            "symbol": "QQQ",
+            "side": "buy",
+            "submitted_at": "2026-05-22T00:00:00Z",
+            "sensitive": "ignored",
+        }
+    )
+    assert result.broker_order_id == "order-123"
+    assert result.client_order_id == "client-123"
+    assert result.status == "accepted"
+    assert result.symbol == "QQQ"
+    assert result.side == "buy"
