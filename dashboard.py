@@ -70,6 +70,15 @@ with right:
             st.error(f"Simulation endpoint error: {e}")
 
 st.divider()
+st.subheader("Broker Status")
+try:
+    response = requests.get(f"{API_BASE}/broker/status", headers=headers, timeout=5)
+    response.raise_for_status()
+    st.json(response.json())
+except Exception as e:
+    st.error(f"Broker status endpoint error: {e}")
+
+st.divider()
 st.subheader("Recent Audit")
 try:
     response = requests.get(f"{API_BASE}/audit", headers=headers, timeout=5)

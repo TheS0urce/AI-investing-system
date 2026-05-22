@@ -100,6 +100,7 @@ The dashboard launcher Terminal should remain open while the dashboard is in use
 7. `.env` is ignored and not tracked.
 8. service is running under launchctl.
 9. `/dashboard/summary` returns JSON with valid API key.
+10. `/broker/status` returns paper/shadow-safe status with valid API key.
 
 If any check fails => NO-GO. Fix and rerun full checklist.
 

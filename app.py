@@ -10,6 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
+from src.ai_investing.broker import broker_readiness
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, PortfolioState
 from src.ai_investing.strategy import SimpleMomentumStrategy
@@ -31,7 +32,14 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(status_code=429, content={"detail": "rate limit exceeded"})
 
 
-config = SystemConfig()
+config = SystemConfig(
+    broker={
+        "provider": os.getenv("BROKER_PROVIDER", "none"),
+        "mode": os.getenv("BROKER_MODE", "none"),
+        "live_enabled": os.getenv("BROKER_LIVE_ENABLED", "false").lower() == "true",
+        "paper_base_url": os.getenv("ALPACA_PAPER_BASE_URL"),
+    }
+)
 strategy = SimpleMomentumStrategy()
 system = InvestingSystem(config=config, strategy=strategy)
 
@@ -110,17 +118,40 @@ def simulate_tick(request: Request, req: TickRequest, x_api_key: str | None = He
 def dashboard_summary(x_api_key: str | None = Header(default=None)):
     require_api_key(x_api_key)
     latest_audit = system.audit_log[-1] if system.audit_log else None
+    broker = broker_readiness(config.broker)
     return {
         "status": "ok",
         "manual_approval_required": config.policy.require_manual_approval,
         "autonomous_execution": config.policy.autonomous_execution,
         "kill_switch": config.policy.kill_switch,
+        "broker": {
+            "provider": broker.provider,
+            "mode": broker.mode,
+            "live_enabled": broker.live_enabled,
+            "ready": broker.ready,
+            "status": broker.status,
+            "reason": broker.reason,
+        },
         "latest_audit": None if not latest_audit else {
             "at": latest_audit.at.isoformat(),
             "event": latest_audit.event,
             "severity": latest_audit.severity,
             "details": latest_audit.details,
         },
+    }
+
+
+@app.get("/broker/status")
+def broker_status(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    return {
+        "provider": broker.provider,
+        "mode": broker.mode,
+        "live_enabled": broker.live_enabled,
+        "ready": broker.ready,
+        "status": broker.status,
+        "reason": broker.reason,
     }
 
 

@@ -111,5 +111,8 @@ echo
 curl -fsS "$API_BASE/dashboard/summary" -H "X-API-Key: $AI_API_KEY"
 echo
 
+curl -fsS "$API_BASE/broker/status" -H "X-API-Key: $AI_API_KEY"
+echo
+
 echo "==> Starting Streamlit dashboard at http://localhost:8501"
 python -m streamlit run dashboard.py --server.port 8501

@@ -26,7 +26,15 @@ class PolicyConfig(BaseModel):
     kill_switch: bool = False
 
 
+class BrokerConfig(BaseModel):
+    provider: str = "none"
+    mode: str = "none"
+    live_enabled: bool = False
+    paper_base_url: str | None = None
+
+
 class SystemConfig(BaseModel):
     risk: RiskConfig = RiskConfig()
     costs: CostConfig = CostConfig()
     policy: PolicyConfig = PolicyConfig()
+    broker: BrokerConfig = BrokerConfig()

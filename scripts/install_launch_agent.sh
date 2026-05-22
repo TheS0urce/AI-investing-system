@@ -83,6 +83,8 @@ curl -fsS "$API_BASE/health"
 echo
 curl -fsS "$API_BASE/dashboard/summary" -H "X-API-Key: $AI_API_KEY"
 echo
+curl -fsS "$API_BASE/broker/status" -H "X-API-Key: $AI_API_KEY"
+echo
 
 echo "LaunchAgent installed: $LABEL"
 echo "Plist: $PLIST"
