@@ -308,6 +308,13 @@ curl -s -X POST http://127.0.0.1:8001/broker/paper/order_preview \
   -d '{"symbol":"QQQ","side":"BUY","quantity":0.01,"limit_price":430.00}'
 ```
 
+Run the guarded paper order drill in no-submit mode:
+```bash
+.venv/bin/python scripts/paper_order_drill.py
+```
+
+Expected no-submit result: `PAPER-DRILL-READY-NO-SUBMIT`.
+
 Paper order submission is manual-only and requires an exact confirmation phrase:
 ```bash
 curl -s -X POST http://127.0.0.1:8001/broker/paper/submit_order \

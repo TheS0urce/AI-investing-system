@@ -124,6 +124,14 @@ curl -s "http://127.0.0.1:8001/broker/paper/readiness?watch_limit=500" \
 
 Result: `PAPER-GO` for paper/watch stage.
 
+Guarded paper order drill:
+
+```bash
+.venv/bin/python scripts/paper_order_drill.py
+```
+
+Result: `PAPER-DRILL-READY-NO-SUBMIT`, `submit_attempted=false`, `open_orders_before=[]`.
+
 ## Safety Notes
 
 - No live credentials were added.
@@ -135,3 +143,4 @@ Result: `PAPER-GO` for paper/watch stage.
 - Watch exports are read-only review artifacts.
 - Watch summary reports blocked/proposed action counts and keeps `auto_submit_enabled=false`.
 - Paper readiness report is paper-stage only and is not live-trading approval.
+- Paper order drill defaults to no-submit and requires explicit confirmation before paper submission.

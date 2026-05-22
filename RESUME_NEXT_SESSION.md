@@ -37,6 +37,7 @@ Trigger phrase: **Let's continue**
 - Watch history CSV/JSONL export
 - Paper readiness report script returns `PAPER-GO` for paper/watch stage
 - Paper readiness API endpoint and dashboard control return `PAPER-GO`
+- Guarded paper order drill helper returns `PAPER-DRILL-READY-NO-SUBMIT` by default
 - LaunchAgent restarted with paper market-data endpoints live
 
 ## Evidence Files
@@ -65,6 +66,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" -H "X-API-K
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_readiness_report.py
 curl -s "http://127.0.0.1:8001/broker/paper/readiness?watch_limit=500" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+.venv/bin/python scripts/paper_order_drill.py
 ```
 
 ## Next Technical Goal
