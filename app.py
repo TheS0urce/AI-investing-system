@@ -307,6 +307,50 @@ def summarize_watch_events(events: list[dict]) -> dict[str, object]:
     }
 
 
+def readiness_check(condition: bool, name: str, detail: str = "") -> dict[str, object]:
+    return {
+        "name": name,
+        "status": "PASS" if condition else "FAIL",
+        "detail": detail,
+    }
+
+
+def paper_readiness_payload(watch_limit: int = 500) -> dict[str, object]:
+    broker = broker_readiness(config.broker)
+    watch_events = read_watch_events(watch_limit)
+    if not watch_events:
+        watch_events = getattr(app.state, "paper_watch_history", [])[-watch_limit:]
+    watch_summary = summarize_watch_events(watch_events)
+
+    open_orders: list[object] = []
+    open_orders_error = ""
+    if broker.status == "ALPACA-PAPER-READY":
+        try:
+            open_orders = fetch_paper_orders(alpaca_paper_credentials(), status="open", limit=20)
+        except (RuntimeError, ValueError) as exc:
+            open_orders_error = str(exc)
+
+    checks = [
+        readiness_check(config.policy.require_manual_approval is True, "manual_approval_required"),
+        readiness_check(config.policy.autonomous_execution is False, "autonomous_execution_disabled"),
+        readiness_check(config.policy.kill_switch is False, "kill_switch_not_active"),
+        readiness_check(broker.provider == "alpaca", "broker_provider_alpaca"),
+        readiness_check(broker.mode == "paper", "broker_mode_paper"),
+        readiness_check(broker.live_enabled is False, "live_routing_disabled"),
+        readiness_check(broker.status == "ALPACA-PAPER-READY", "broker_paper_ready", broker.reason),
+        readiness_check(open_orders_error == "", "paper_orders_query_ok", open_orders_error),
+        readiness_check(len(open_orders) == 0 and open_orders_error == "", "no_open_paper_orders", str(open_orders)),
+        readiness_check(watch_summary.get("auto_submit_enabled") is False, "watch_auto_submit_disabled"),
+        readiness_check(int(watch_summary.get("total_ticks", 0)) >= 1, "watch_history_has_evidence"),
+    ]
+    passed = all(item["status"] == "PASS" for item in checks)
+    return {
+        "status": "PAPER-GO" if passed else "PAPER-NO-GO",
+        "checks": checks,
+        "watch_summary": watch_summary,
+    }
+
+
 def run_paper_strategy_preview(
     *,
     symbol: str,
@@ -601,6 +645,19 @@ def broker_paper_orders(
         }
         for order in orders
     ]
+
+
+@app.get("/broker/paper/readiness")
+@limiter.limit("20/minute")
+def broker_paper_readiness(
+    request: Request,
+    watch_limit: int = 500,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if watch_limit <= 0 or watch_limit > 5_000:
+        raise HTTPException(status_code=400, detail="watch_limit_must_be_between_1_and_5000")
+    return paper_readiness_payload(watch_limit=watch_limit)
 
 
 @app.post("/broker/paper/cancel_orders")

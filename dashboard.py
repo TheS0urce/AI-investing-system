@@ -114,6 +114,21 @@ with broker_left:
             st.error(f"Paper preview error: {e}")
 
 with broker_right:
+    st.subheader("Paper Readiness")
+    if st.button("Run Paper Readiness"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/readiness",
+                headers=headers,
+                params={"watch_limit": 500},
+                timeout=15,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Paper readiness error: {e}")
+
+with broker_right:
     st.subheader("Recent Paper Orders")
     if st.button("Refresh Paper Orders"):
         try:

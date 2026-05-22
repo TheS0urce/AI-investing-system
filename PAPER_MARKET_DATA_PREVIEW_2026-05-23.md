@@ -118,6 +118,8 @@ Paper readiness report:
 
 ```bash
 .venv/bin/python scripts/paper_readiness_report.py
+curl -s "http://127.0.0.1:8001/broker/paper/readiness?watch_limit=500" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
 Result: `PAPER-GO` for paper/watch stage.
