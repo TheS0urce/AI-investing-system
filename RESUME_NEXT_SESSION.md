@@ -33,6 +33,7 @@ Trigger phrase: **Let's continue**
 - Dashboard real-time paper preview controls
 - Paper watch-mode tick and in-memory watch history
 - Durable paper watch history in `logs/paper_watch_history.jsonl`
+- Watch history CSV/JSONL export
 - LaunchAgent restarted with paper market-data endpoints live
 
 ## Evidence Files
@@ -57,6 +58,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/orders?status=open&limit=20" -H "X-A
 curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&use_paper_account=true" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
 curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
 ## Next Technical Goal
@@ -65,9 +67,9 @@ Continue real-time paper trading, not live trading:
 
 1. Improve strategy signal quality before any live trading discussion.
 2. Add dashboard display for watch-mode history and blocked/proposed actions.
-3. Add CSV/JSON export for watch history if needed for review.
-4. Keep paper submit manual-only behind exact confirmation phrase.
-5. Run paper submit/reconcile/cancel drill again.
+3. Keep paper submit manual-only behind exact confirmation phrase.
+4. Run paper submit/reconcile/cancel drill again.
+5. Prepare paper-trading GO/NO-GO checklist before any live discussion.
 
 ## Boundaries
 

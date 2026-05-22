@@ -394,3 +394,56 @@ def test_watch_history_rejects_invalid_limit(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "limit_must_be_between_1_and_200"
+
+
+def test_watch_export_returns_csv(monkeypatch, tmp_path):
+    monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
+    app.append_watch_event(
+        {
+            "at": "2026-05-22T00:00:00+00:00",
+            "symbol": "QQQ",
+            "feed": "iex",
+            "auto_submit_enabled": False,
+            "portfolio_source": "alpaca_paper_account",
+            "market": {"price": 430.12, "spread_bps": 2.3},
+            "order_proposal": None,
+            "latest_audit": {"event": "order_block", "severity": "WARN", "details": "test"},
+        }
+    )
+
+    response = client(monkeypatch).get(
+        "/broker/paper/watch_export",
+        headers={"X-API-Key": "test-key"},
+        params={"format": "csv", "limit": 10},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/csv")
+    assert "market_price" in response.text
+    assert "430.12" in response.text
+
+
+def test_watch_export_returns_jsonl(monkeypatch, tmp_path):
+    monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
+    app.append_watch_event({"symbol": "QQQ"})
+
+    response = client(monkeypatch).get(
+        "/broker/paper/watch_export",
+        headers={"X-API-Key": "test-key"},
+        params={"format": "jsonl", "limit": 10},
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-ndjson")
+    assert response.text == '{"symbol":"QQQ"}\n'
+
+
+def test_watch_export_rejects_unknown_format(monkeypatch):
+    response = client(monkeypatch).get(
+        "/broker/paper/watch_export",
+        headers={"X-API-Key": "test-key"},
+        params={"format": "xlsx"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "format_must_be_csv_or_jsonl"

@@ -1,5 +1,7 @@
 import os
 import json
+import csv
+import io
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,6 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
+from fastapi.responses import Response
 
 from src.ai_investing.alpaca import (
     AlpacaAccountSummary,
@@ -212,6 +215,61 @@ def read_watch_events(limit: int) -> list[dict]:
             if isinstance(payload, dict):
                 events.append(payload)
     return events[-limit:]
+
+
+def flatten_watch_event(event: dict) -> dict[str, object]:
+    market = event.get("market") if isinstance(event.get("market"), dict) else {}
+    latest_audit = event.get("latest_audit") if isinstance(event.get("latest_audit"), dict) else {}
+    order = event.get("order_proposal") if isinstance(event.get("order_proposal"), dict) else {}
+    return {
+        "at": event.get("at"),
+        "symbol": event.get("symbol"),
+        "feed": event.get("feed"),
+        "auto_submit_enabled": event.get("auto_submit_enabled"),
+        "portfolio_source": event.get("portfolio_source"),
+        "market_price": market.get("price"),
+        "market_spread_bps": market.get("spread_bps"),
+        "market_volume_24h": market.get("volume_24h"),
+        "market_volatility_30d": market.get("volatility_30d"),
+        "market_timestamp": market.get("timestamp"),
+        "order_symbol": order.get("symbol"),
+        "order_side": order.get("side"),
+        "order_quantity": order.get("quantity"),
+        "order_limit_price": order.get("limit_price"),
+        "order_expected_edge_bps": order.get("expected_edge_bps"),
+        "audit_event": latest_audit.get("event"),
+        "audit_severity": latest_audit.get("severity"),
+        "audit_details": latest_audit.get("details"),
+    }
+
+
+def watch_events_to_csv(events: list[dict]) -> str:
+    fields = [
+        "at",
+        "symbol",
+        "feed",
+        "auto_submit_enabled",
+        "portfolio_source",
+        "market_price",
+        "market_spread_bps",
+        "market_volume_24h",
+        "market_volatility_30d",
+        "market_timestamp",
+        "order_symbol",
+        "order_side",
+        "order_quantity",
+        "order_limit_price",
+        "order_expected_edge_bps",
+        "audit_event",
+        "audit_severity",
+        "audit_details",
+    ]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    for event in events:
+        writer.writerow(flatten_watch_event(event))
+    return output.getvalue()
 
 
 def run_paper_strategy_preview(
@@ -622,3 +680,33 @@ def broker_paper_watch_history(
         return disk_history
     history = getattr(app.state, "paper_watch_history", [])
     return history[-limit:]
+
+
+@app.get("/broker/paper/watch_export")
+@limiter.limit("10/minute")
+def broker_paper_watch_export(
+    request: Request,
+    limit: int = 200,
+    format: str = "csv",
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if limit <= 0 or limit > 5_000:
+        raise HTTPException(status_code=400, detail="limit_must_be_between_1_and_5000")
+    events = read_watch_events(limit)
+    if format == "jsonl":
+        body = "\n".join(json.dumps(event, separators=(",", ":")) for event in events)
+        if body:
+            body += "\n"
+        return Response(
+            content=body,
+            media_type="application/x-ndjson",
+            headers={"Content-Disposition": "attachment; filename=paper_watch_history.jsonl"},
+        )
+    if format == "csv":
+        return Response(
+            content=watch_events_to_csv(events),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=paper_watch_history.csv"},
+        )
+    raise HTTPException(status_code=400, detail="format_must_be_csv_or_jsonl")

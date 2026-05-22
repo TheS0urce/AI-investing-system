@@ -255,6 +255,45 @@ with watch_right:
         except Exception as e:
             st.error(f"Watch history error: {e}")
 
+export_left, export_right = st.columns(2)
+with export_left:
+    if st.button("Export Watch CSV"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/watch_export",
+                headers=headers,
+                params={"format": "csv", "limit": 500},
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.download_button(
+                "Download Watch CSV",
+                data=response.text,
+                file_name="paper_watch_history.csv",
+                mime="text/csv",
+            )
+        except Exception as e:
+            st.error(f"Watch CSV export error: {e}")
+
+with export_right:
+    if st.button("Export Watch JSONL"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/watch_export",
+                headers=headers,
+                params={"format": "jsonl", "limit": 500},
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.download_button(
+                "Download Watch JSONL",
+                data=response.text,
+                file_name="paper_watch_history.jsonl",
+                mime="application/x-ndjson",
+            )
+        except Exception as e:
+            st.error(f"Watch JSONL export error: {e}")
+
 st.divider()
 st.subheader("Recent Audit")
 try:

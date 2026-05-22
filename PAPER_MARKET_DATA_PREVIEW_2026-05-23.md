@@ -101,6 +101,17 @@ wc -l logs/paper_watch_history.jsonl
 
 Result after clean smoke test: `1`.
 
+Watch export:
+
+```bash
+curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=jsonl&limit=5" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+```
+
+Result: CSV and JSONL exports returned the clean watch record.
+
 ## Safety Notes
 
 - No live credentials were added.
@@ -109,3 +120,4 @@ Result after clean smoke test: `1`.
 - The strategy preview endpoint does not call the paper submit adapter.
 - Watch mode records previews only and does not call the paper submit adapter.
 - Watch history is persisted as local gitignored JSONL runtime data.
+- Watch exports are read-only review artifacts.
