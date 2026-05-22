@@ -1,12 +1,15 @@
 import pytest
 
 from src.ai_investing.alpaca import (
+    AlpacaMarketDataCredentials,
     AlpacaPaperCredentials,
     account_summary_from_payload,
     alpaca_order_payload,
     decimal_string,
+    ensure_market_data_credentials,
     ensure_paper_credentials,
     mask_account_number,
+    market_snapshot_from_alpaca_payload,
     paper_order_result_from_payload,
     paper_orders_from_payload,
 )
@@ -79,6 +82,40 @@ def test_ensure_paper_credentials_blocks_live_url():
 def test_ensure_paper_credentials_requires_key_and_secret():
     with pytest.raises(RuntimeError, match="alpaca_paper_credentials_missing"):
         ensure_paper_credentials(AlpacaPaperCredentials("", "", "https://paper-api.alpaca.markets"))
+
+
+def test_ensure_market_data_credentials_blocks_non_data_url():
+    with pytest.raises(RuntimeError, match="alpaca_market_data_guard_failed"):
+        ensure_market_data_credentials(AlpacaMarketDataCredentials("key", "secret", "https://api.alpaca.markets"))
+
+
+def test_ensure_market_data_credentials_rejects_unknown_feed():
+    with pytest.raises(RuntimeError, match="alpaca_market_data_feed_not_allowed"):
+        ensure_market_data_credentials(
+            AlpacaMarketDataCredentials("key", "secret", "https://data.alpaca.markets", "unknown")
+        )
+
+
+def test_market_snapshot_from_alpaca_payload_uses_trade_quote_and_daily_volume():
+    snapshot = market_snapshot_from_alpaca_payload(
+        "qqq",
+        {
+            "latestTrade": {"p": 430.12, "t": "2026-05-22T20:00:00Z"},
+            "latestQuote": {"bp": 430.1, "ap": 430.2},
+            "dailyBar": {"v": 12_345_678},
+        },
+        default_volatility_30d=0.04,
+    )
+    assert snapshot.symbol == "QQQ"
+    assert snapshot.price == 430.12
+    assert snapshot.spread_bps == pytest.approx(2.3247704)
+    assert snapshot.volume_24h == 12_345_678
+    assert snapshot.volatility_30d == 0.04
+
+
+def test_market_snapshot_from_alpaca_payload_requires_price():
+    with pytest.raises(RuntimeError, match="alpaca_market_data_missing_price"):
+        market_snapshot_from_alpaca_payload("QQQ", {"latestTrade": {}, "latestQuote": {}, "minuteBar": {}})
 
 
 def test_paper_order_result_from_payload_masks_to_safe_fields():

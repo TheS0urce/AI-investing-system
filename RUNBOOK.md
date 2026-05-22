@@ -237,11 +237,28 @@ Configure paper credentials only after a broker paper account exists:
 ```bash
 ./scripts/configure_alpaca_paper.sh
 ./scripts/install_launch_agent.sh
-python scripts/alpaca_env_sanity.py
-python scripts/check_alpaca_paper_account.py
+.venv/bin/python scripts/alpaca_env_sanity.py
+.venv/bin/python scripts/check_alpaca_paper_account.py
 ```
 
-This deployment remains **NO-GO for live broker routing** until a paper-only adapter is implemented, tested, and signed off.
+This deployment remains **NO-GO for live broker routing**. Paper order submission is manual-only, and strategy previews must not automatically submit orders.
+
+Read-only Alpaca market data check:
+```bash
+.venv/bin/python scripts/check_alpaca_market_data.py
+```
+
+Fetch a read-only paper market snapshot:
+```bash
+curl -s "http://127.0.0.1:8001/broker/paper/market_snapshot?symbol=QQQ&feed=iex" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+```
+
+Run a real-time paper strategy preview without submitting an order:
+```bash
+curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&cash=100&equity=100&peak_equity=100&daily_pnl=0&consecutive_losses=0" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+```
 
 Paper order preview is safe to inspect because it does not submit orders:
 ```bash

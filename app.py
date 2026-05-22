@@ -11,9 +11,11 @@ from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
 from src.ai_investing.alpaca import (
+    AlpacaMarketDataCredentials,
     AlpacaPaperCredentials,
     alpaca_order_payload,
     cancel_paper_orders,
+    fetch_stock_snapshot,
     fetch_paper_orders,
     submit_paper_order,
 )
@@ -45,6 +47,8 @@ config = SystemConfig(
         "mode": os.getenv("BROKER_MODE", "none"),
         "live_enabled": os.getenv("BROKER_LIVE_ENABLED", "false").lower() == "true",
         "paper_base_url": os.getenv("ALPACA_PAPER_BASE_URL"),
+        "market_data_base_url": os.getenv("ALPACA_MARKET_DATA_BASE_URL", "https://data.alpaca.markets"),
+        "market_data_feed": os.getenv("ALPACA_MARKET_DATA_FEED", "iex"),
         "paper_api_key_present": bool(os.getenv("ALPACA_PAPER_API_KEY")),
         "paper_secret_key_present": bool(os.getenv("ALPACA_PAPER_SECRET_KEY")),
     }
@@ -82,6 +86,39 @@ class PaperOrderSubmitRequest(PaperOrderPreviewRequest):
 
 class PaperCancelRequest(BaseModel):
     confirm: str
+
+
+def serialize_market(market: MarketSnapshot):
+    return {
+        "symbol": market.symbol,
+        "price": market.price,
+        "spread_bps": market.spread_bps,
+        "volume_24h": market.volume_24h,
+        "volatility_30d": market.volatility_30d,
+        "timestamp": market.timestamp.isoformat(),
+    }
+
+
+def serialize_order(order: OrderProposal | None):
+    if order is None:
+        return None
+    return {
+        "symbol": order.symbol,
+        "side": str(order.side.value),
+        "quantity": order.quantity,
+        "limit_price": order.limit_price,
+        "expected_edge_bps": order.expected_edge_bps,
+        "reason": order.reason,
+    }
+
+
+def alpaca_market_data_credentials(feed: str | None = None) -> AlpacaMarketDataCredentials:
+    return AlpacaMarketDataCredentials(
+        api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
+        secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
+        base_url=os.getenv("ALPACA_MARKET_DATA_BASE_URL", "https://data.alpaca.markets"),
+        feed=feed or os.getenv("ALPACA_MARKET_DATA_FEED", "iex"),
+    )
 
 
 def require_api_key(x_api_key: str | None):
@@ -123,14 +160,7 @@ def simulate_tick(request: Request, req: TickRequest, x_api_key: str | None = He
     order = system.process_tick(market, portfolio)
 
     return {
-        "order_proposal": None if order is None else {
-            "symbol": order.symbol,
-            "side": str(order.side.value),
-            "quantity": order.quantity,
-            "limit_price": order.limit_price,
-            "expected_edge_bps": order.expected_edge_bps,
-            "reason": order.reason,
-        },
+        "order_proposal": serialize_order(order),
         "latest_audit": None if not system.audit_log else {
             "at": system.audit_log[-1].at.isoformat(),
             "event": system.audit_log[-1].event,
@@ -157,12 +187,91 @@ def dashboard_summary(x_api_key: str | None = Header(default=None)):
             "ready": broker.ready,
             "status": broker.status,
             "reason": broker.reason,
+            "market_data_base_url": config.broker.market_data_base_url,
+            "market_data_feed": config.broker.market_data_feed,
         },
         "latest_audit": None if not latest_audit else {
             "at": latest_audit.at.isoformat(),
             "event": latest_audit.event,
             "severity": latest_audit.severity,
             "details": latest_audit.details,
+        },
+    }
+
+
+@app.get("/broker/paper/market_snapshot")
+@limiter.limit("20/minute")
+def broker_paper_market_snapshot(
+    request: Request,
+    symbol: str = "QQQ",
+    feed: str | None = None,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+    try:
+        market = fetch_stock_snapshot(
+            alpaca_market_data_credentials(feed),
+            symbol=symbol,
+            default_volatility_30d=float(os.getenv("AI_DEFAULT_VOLATILITY_30D", "0.03")),
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "source": "alpaca_market_data",
+        "feed": feed or config.broker.market_data_feed,
+        "snapshot": serialize_market(market),
+    }
+
+
+@app.get("/broker/paper/strategy_preview")
+@limiter.limit("20/minute")
+def broker_paper_strategy_preview(
+    request: Request,
+    symbol: str = "QQQ",
+    feed: str | None = None,
+    cash: float = 1_000.0,
+    equity: float = 1_000.0,
+    peak_equity: float = 1_000.0,
+    daily_pnl: float = 0.0,
+    consecutive_losses: int = 0,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+    try:
+        market = fetch_stock_snapshot(
+            alpaca_market_data_credentials(feed),
+            symbol=symbol,
+            default_volatility_30d=float(os.getenv("AI_DEFAULT_VOLATILITY_30D", "0.03")),
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    portfolio = PortfolioState(
+        cash=cash,
+        equity=equity,
+        peak_equity=peak_equity,
+        daily_pnl=daily_pnl,
+        consecutive_losses=consecutive_losses,
+        positions={},
+    )
+    order = system.process_tick(market, portfolio)
+    return {
+        "mode": "paper_preview_only",
+        "auto_submit_enabled": False,
+        "manual_confirmation_required": "SUBMIT_PAPER_ORDER",
+        "market": serialize_market(market),
+        "order_proposal": serialize_order(order),
+        "latest_audit": None if not system.audit_log else {
+            "at": system.audit_log[-1].at.isoformat(),
+            "event": system.audit_log[-1].event,
+            "severity": system.audit_log[-1].severity,
+            "details": system.audit_log[-1].details,
         },
     }
 

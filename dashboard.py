@@ -165,6 +165,50 @@ with st.expander("Cancel Open Paper Orders"):
                 st.error(f"Paper cancel error: {e}")
 
 st.divider()
+st.subheader("Real-Time Paper Preview")
+market_left, market_right = st.columns(2)
+
+with market_left:
+    market_symbol = st.text_input("Market symbol", value="QQQ").upper()
+    market_feed = st.selectbox("Market data feed", ["iex", "delayed_sip", "sip"], index=0)
+    if st.button("Fetch Market Snapshot"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/market_snapshot",
+                headers=headers,
+                params={"symbol": market_symbol, "feed": market_feed},
+                timeout=15,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Market snapshot error: {e}")
+
+with market_right:
+    preview_cash = st.number_input("Preview cash", min_value=0.0, value=100.0, step=10.0)
+    preview_equity = st.number_input("Preview equity", min_value=0.0, value=100.0, step=10.0)
+    if st.button("Run Paper Strategy Preview"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/strategy_preview",
+                headers=headers,
+                params={
+                    "symbol": market_symbol,
+                    "feed": market_feed,
+                    "cash": preview_cash,
+                    "equity": preview_equity,
+                    "peak_equity": preview_equity,
+                    "daily_pnl": 0,
+                    "consecutive_losses": 0,
+                },
+                timeout=15,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Strategy preview error: {e}")
+
+st.divider()
 st.subheader("Recent Audit")
 try:
     response = requests.get(f"{API_BASE}/audit", headers=headers, timeout=5)

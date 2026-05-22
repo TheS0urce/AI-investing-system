@@ -9,11 +9,12 @@ Trigger phrase: **Let's continue**
 - Dashboard apps: `~/Applications/AI Investment`
 - Broker: Alpaca paper
 - Broker readiness: `ALPACA-PAPER-READY`
+- Market data: Alpaca stock snapshots via `https://data.alpaca.markets`, default feed `iex`
 - Live routing: `false`
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 31 tests
+- Final validation: `./scripts/check.sh` passed with 37 tests
 
 ## Completed Today
 
@@ -25,6 +26,10 @@ Trigger phrase: **Let's continue**
 - Paper order reconciliation
 - Guarded paper order cancellation
 - Paper order cancellation verified, no open paper orders remain
+- Read-only Alpaca market-data snapshot adapter
+- Real-time paper strategy preview endpoint
+- Dashboard real-time paper preview controls
+- LaunchAgent restarted with paper market-data endpoints live
 
 ## Evidence Files
 
@@ -33,6 +38,7 @@ Trigger phrase: **Let's continue**
 - `PAPER_ORDER_SUBMISSION_2026-05-22.md`
 - `PAPER_ORDER_RECONCILIATION_2026-05-22.md`
 - `PAPER_ORDER_CANCEL_2026-05-22.md`
+- `PAPER_MARKET_DATA_PREVIEW_2026-05-23.md`
 
 ## First Commands Tomorrow
 
@@ -40,20 +46,21 @@ Trigger phrase: **Let's continue**
 cd "/Users/michielburger/Claude Code/AI-investing-system"
 git status --short --branch
 ./scripts/check.sh
+.venv/bin/python scripts/check_alpaca_market_data.py
 curl -s http://127.0.0.1:8001/dashboard/summary -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/orders?status=open&limit=20" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&cash=100&equity=100&peak_equity=100&daily_pnl=0&consecutive_losses=0" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
 ## Next Technical Goal
 
-Implement real-time paper trading, not live trading:
+Continue real-time paper trading, not live trading:
 
-1. Add market-data source selection for paper stage.
-2. Add read-only market data fetch/polling.
-3. Feed market snapshots into the existing strategy/safety pipeline.
-4. Display strategy proposal in dashboard.
-5. Keep paper submit manual-only behind exact confirmation phrase.
-6. Run paper submit/reconcile/cancel drill again.
+1. Add timed polling/watch mode for selected paper symbols.
+2. Add portfolio/account state ingestion for paper preview sizing.
+3. Improve strategy signal quality before any live trading discussion.
+4. Keep paper submit manual-only behind exact confirmation phrase.
+5. Run paper submit/reconcile/cancel drill again.
 
 ## Boundaries
 

@@ -31,6 +31,8 @@ class BrokerConfig(BaseModel):
     mode: str = "none"
     live_enabled: bool = False
     paper_base_url: str | None = None
+    market_data_base_url: str | None = None
+    market_data_feed: str = "iex"
     paper_api_key_present: bool = False
     paper_secret_key_present: bool = False
 
