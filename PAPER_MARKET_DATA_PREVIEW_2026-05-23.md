@@ -114,6 +114,14 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=jsonl&limit=5" \
 
 Result: summary, CSV, and JSONL endpoints returned the clean watch record.
 
+Paper readiness report:
+
+```bash
+.venv/bin/python scripts/paper_readiness_report.py
+```
+
+Result: `PAPER-GO` for paper/watch stage.
+
 ## Safety Notes
 
 - No live credentials were added.
@@ -124,3 +132,4 @@ Result: summary, CSV, and JSONL endpoints returned the clean watch record.
 - Watch history is persisted as local gitignored JSONL runtime data.
 - Watch exports are read-only review artifacts.
 - Watch summary reports blocked/proposed action counts and keeps `auto_submit_enabled=false`.
+- Paper readiness report is paper-stage only and is not live-trading approval.

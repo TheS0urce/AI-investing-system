@@ -291,6 +291,13 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=jsonl&limit=500"
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
+Generate the paper-stage readiness report:
+```bash
+.venv/bin/python scripts/paper_readiness_report.py
+```
+
+Expected current-stage result: `PAPER-GO`. This is not live-trading approval.
+
 Paper order preview is safe to inspect because it does not submit orders:
 ```bash
 curl -s -X POST http://127.0.0.1:8001/broker/paper/order_preview \
