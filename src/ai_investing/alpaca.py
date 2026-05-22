@@ -165,6 +165,50 @@ def fetch_paper_orders(
     return paper_orders_from_payload(payload)
 
 
+def cancel_paper_orders(credentials: AlpacaPaperCredentials, timeout: float = 10.0) -> list[AlpacaPaperOrderResult]:
+    ensure_paper_credentials(credentials)
+    request = Request(
+        f"{credentials.base_url.rstrip('/')}/v2/orders",
+        headers={
+            "APCA-API-KEY-ID": credentials.api_key,
+            "APCA-API-SECRET-KEY": credentials.secret_key,
+        },
+        method="DELETE",
+    )
+    context = ssl.create_default_context(cafile=certifi.where()) if certifi else ssl.create_default_context()
+    try:
+        with urlopen(request, timeout=timeout, context=context) as response:
+            body = response.read().decode("utf-8")
+            payload = json.loads(body) if body else []
+    except HTTPError as exc:
+        raise RuntimeError(f"alpaca_cancel_orders_http_error:{exc.code}:{http_error_body(exc)}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"alpaca_cancel_orders_network_error:{exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("alpaca_cancel_orders_invalid_json") from exc
+
+    if not isinstance(payload, list):
+        raise RuntimeError("alpaca_cancel_orders_invalid_payload")
+    orders: list[AlpacaPaperOrderResult] = []
+    for item in payload:
+        if isinstance(item, dict):
+            body = item.get("body")
+            if isinstance(body, dict):
+                orders.append(paper_order_result_from_payload(body))
+            else:
+                orders.append(
+                    AlpacaPaperOrderResult(
+                        broker_order_id=str(item.get("id", "")),
+                        client_order_id=None,
+                        status=str(item.get("status", "unknown")),
+                        symbol="",
+                        side="",
+                        submitted_at=None,
+                    )
+                )
+    return orders
+
+
 def submit_paper_order(
     credentials: AlpacaPaperCredentials,
     order: OrderProposal,

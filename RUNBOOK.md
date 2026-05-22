@@ -266,6 +266,14 @@ curl -s "http://127.0.0.1:8001/broker/paper/orders?status=all&limit=20" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
+Cancel open paper orders requires explicit confirmation:
+```bash
+curl -s -X POST http://127.0.0.1:8001/broker/paper/cancel_orders \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)" \
+  -d '{"confirm":"CANCEL_PAPER_ORDERS"}'
+```
+
 ---
 
 ## 13) Live Trading GO/NO-GO Final Sign-off (One-Page Form)

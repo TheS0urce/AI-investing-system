@@ -146,6 +146,24 @@ with st.expander("Submit Paper Order"):
             except Exception as e:
                 st.error(f"Paper submit error: {e}")
 
+with st.expander("Cancel Open Paper Orders"):
+    cancel_confirm = st.text_input("Cancel confirmation", value="", key="cancel_paper_confirm")
+    if st.button("Cancel Open Paper Orders", type="secondary"):
+        if cancel_confirm != "CANCEL_PAPER_ORDERS":
+            st.error("Type CANCEL_PAPER_ORDERS to request paper-order cancellation.")
+        else:
+            try:
+                response = requests.post(
+                    f"{API_BASE}/broker/paper/cancel_orders",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json={"confirm": cancel_confirm},
+                    timeout=15,
+                )
+                response.raise_for_status()
+                st.json(response.json())
+            except Exception as e:
+                st.error(f"Paper cancel error: {e}")
+
 st.divider()
 st.subheader("Recent Audit")
 try:

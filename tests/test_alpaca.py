@@ -123,3 +123,18 @@ def test_paper_orders_from_payload_returns_safe_order_results():
     )
     assert [result.broker_order_id for result in results] == ["order-1", "order-2"]
     assert [result.status for result in results] == ["accepted", "filled"]
+
+
+def test_paper_order_result_from_cancel_body_payload():
+    result = paper_order_result_from_payload(
+        {
+            "id": "order-cancelled",
+            "client_order_id": "client-cancelled",
+            "status": "canceled",
+            "symbol": "QQQ",
+            "side": "buy",
+            "submitted_at": "2026-05-22T00:00:00Z",
+        }
+    )
+    assert result.broker_order_id == "order-cancelled"
+    assert result.status == "canceled"

@@ -10,7 +10,13 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
-from src.ai_investing.alpaca import AlpacaPaperCredentials, alpaca_order_payload, fetch_paper_orders, submit_paper_order
+from src.ai_investing.alpaca import (
+    AlpacaPaperCredentials,
+    alpaca_order_payload,
+    cancel_paper_orders,
+    fetch_paper_orders,
+    submit_paper_order,
+)
 from src.ai_investing.broker import broker_readiness
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioState, Side
@@ -71,6 +77,10 @@ class PaperOrderPreviewRequest(BaseModel):
 
 
 class PaperOrderSubmitRequest(PaperOrderPreviewRequest):
+    confirm: str
+
+
+class PaperCancelRequest(BaseModel):
     confirm: str
 
 
@@ -274,6 +284,48 @@ def broker_paper_orders(
         }
         for order in orders
     ]
+
+
+@app.post("/broker/paper/cancel_orders")
+@limiter.limit("5/minute")
+def broker_paper_cancel_orders(
+    request: Request,
+    req: PaperCancelRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if req.confirm != "CANCEL_PAPER_ORDERS":
+        raise HTTPException(status_code=400, detail="confirmation_phrase_required")
+
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+
+    credentials = AlpacaPaperCredentials(
+        api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
+        secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
+        base_url=os.getenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets"),
+    )
+    try:
+        cancelled = cancel_paper_orders(credentials)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    system._audit("paper_orders_cancel_requested", "WARN", f"cancelled={len(cancelled)}")
+    return {
+        "cancel_requested": True,
+        "orders": [
+            {
+                "broker_order_id": order.broker_order_id,
+                "client_order_id": order.client_order_id,
+                "status": order.status,
+                "symbol": order.symbol,
+                "side": order.side,
+                "submitted_at": order.submitted_at,
+            }
+            for order in cancelled
+        ],
+    }
 
 
 @app.get("/audit")
