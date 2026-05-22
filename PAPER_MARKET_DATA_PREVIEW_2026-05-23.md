@@ -76,9 +76,27 @@ curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex
 
 Result: `portfolio_source=alpaca_paper_account`, `auto_submit_enabled=false`, latest audit `insufficient_net_edge_after_costs`.
 
+Paper watch tick:
+
+```bash
+.venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
+```
+
+Result: `WATCH-TICK-OK`, `auto_submit_enabled=false`, `order_proposal=null`.
+
+Watch history:
+
+```bash
+curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+```
+
+Result: returned the recorded read-only paper watch tick.
+
 ## Safety Notes
 
 - No live credentials were added.
 - No live broker URL is allowed by the paper order guard.
 - The market data adapter is read-only.
 - The strategy preview endpoint does not call the paper submit adapter.
+- Watch mode records previews only and does not call the paper submit adapter.

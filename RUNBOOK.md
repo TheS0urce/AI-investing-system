@@ -272,6 +272,15 @@ curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
+Record one read-only paper watch tick and inspect recent history:
+```bash
+.venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
+curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+```
+
+Watch mode records what the strategy would have done. It does not submit orders.
+
 Paper order preview is safe to inspect because it does not submit orders:
 ```bash
 curl -s -X POST http://127.0.0.1:8001/broker/paper/order_preview \

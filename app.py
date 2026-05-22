@@ -90,6 +90,17 @@ class PaperCancelRequest(BaseModel):
     confirm: str
 
 
+class PaperWatchTickRequest(BaseModel):
+    symbol: str = "QQQ"
+    feed: str | None = None
+    use_paper_account: bool = True
+    cash: float = 1_000.0
+    equity: float = 1_000.0
+    peak_equity: float = 1_000.0
+    daily_pnl: float = 0.0
+    consecutive_losses: int = 0
+
+
 def serialize_market(market: MarketSnapshot):
     return {
         "symbol": market.symbol,
@@ -164,6 +175,62 @@ def require_api_key(x_api_key: str | None):
         raise HTTPException(status_code=401, detail="invalid api key")
 
 
+def latest_audit_payload():
+    if not system.audit_log:
+        return None
+    latest = system.audit_log[-1]
+    return {
+        "at": latest.at.isoformat(),
+        "event": latest.event,
+        "severity": latest.severity,
+        "details": latest.details,
+    }
+
+
+def run_paper_strategy_preview(
+    *,
+    symbol: str,
+    feed: str | None,
+    cash: float,
+    equity: float,
+    peak_equity: float,
+    daily_pnl: float,
+    consecutive_losses: int,
+    use_paper_account: bool,
+):
+    market = fetch_stock_snapshot(
+        alpaca_market_data_credentials(feed),
+        symbol=symbol,
+        default_volatility_30d=float(os.getenv("AI_DEFAULT_VOLATILITY_30D", "0.03")),
+    )
+
+    account = None
+    if use_paper_account:
+        account = fetch_paper_account(alpaca_paper_credentials())
+        portfolio = portfolio_from_account(account, consecutive_losses=consecutive_losses)
+    else:
+        portfolio = PortfolioState(
+            cash=cash,
+            equity=equity,
+            peak_equity=peak_equity,
+            daily_pnl=daily_pnl,
+            consecutive_losses=consecutive_losses,
+            positions={},
+        )
+
+    order = system.process_tick(market, portfolio)
+    return {
+        "mode": "paper_preview_only",
+        "auto_submit_enabled": False,
+        "manual_confirmation_required": "SUBMIT_PAPER_ORDER",
+        "market": serialize_market(market),
+        "portfolio_source": "alpaca_paper_account" if account else "request",
+        "account": None if account is None else serialize_account(account),
+        "order_proposal": serialize_order(order),
+        "latest_audit": latest_audit_payload(),
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
@@ -196,12 +263,7 @@ def simulate_tick(request: Request, req: TickRequest, x_api_key: str | None = He
 
     return {
         "order_proposal": serialize_order(order),
-        "latest_audit": None if not system.audit_log else {
-            "at": system.audit_log[-1].at.isoformat(),
-            "event": system.audit_log[-1].event,
-            "severity": system.audit_log[-1].severity,
-            "details": system.audit_log[-1].details,
-        },
+        "latest_audit": latest_audit_payload(),
     }
 
 
@@ -298,46 +360,18 @@ def broker_paper_strategy_preview(
     if broker.status != "ALPACA-PAPER-READY":
         raise HTTPException(status_code=403, detail=broker.status)
     try:
-        market = fetch_stock_snapshot(
-            alpaca_market_data_credentials(feed),
+        return run_paper_strategy_preview(
             symbol=symbol,
-            default_volatility_30d=float(os.getenv("AI_DEFAULT_VOLATILITY_30D", "0.03")),
-        )
-    except (RuntimeError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    account = None
-    if use_paper_account:
-        try:
-            account = fetch_paper_account(alpaca_paper_credentials())
-        except RuntimeError as exc:
-            raise HTTPException(status_code=502, detail=str(exc)) from exc
-        portfolio = portfolio_from_account(account, consecutive_losses=consecutive_losses)
-    else:
-        portfolio = PortfolioState(
+            feed=feed,
             cash=cash,
             equity=equity,
             peak_equity=peak_equity,
             daily_pnl=daily_pnl,
             consecutive_losses=consecutive_losses,
-            positions={},
+            use_paper_account=use_paper_account,
         )
-    order = system.process_tick(market, portfolio)
-    return {
-        "mode": "paper_preview_only",
-        "auto_submit_enabled": False,
-        "manual_confirmation_required": "SUBMIT_PAPER_ORDER",
-        "market": serialize_market(market),
-        "portfolio_source": "alpaca_paper_account" if account else "request",
-        "account": None if account is None else serialize_account(account),
-        "order_proposal": serialize_order(order),
-        "latest_audit": None if not system.audit_log else {
-            "at": system.audit_log[-1].at.isoformat(),
-            "event": system.audit_log[-1].event,
-            "severity": system.audit_log[-1].severity,
-            "details": system.audit_log[-1].details,
-        },
-    }
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
 @app.get("/broker/status")
@@ -499,3 +533,58 @@ def audit(request: Request, x_api_key: str | None = Header(default=None)):
         }
         for e in system.audit_log[-200:]
     ]
+
+
+@app.post("/broker/paper/watch_tick")
+@limiter.limit("20/minute")
+def broker_paper_watch_tick(
+    request: Request,
+    req: PaperWatchTickRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+    try:
+        preview = run_paper_strategy_preview(
+            symbol=req.symbol,
+            feed=req.feed,
+            cash=req.cash,
+            equity=req.equity,
+            peak_equity=req.peak_equity,
+            daily_pnl=req.daily_pnl,
+            consecutive_losses=req.consecutive_losses,
+            use_paper_account=req.use_paper_account,
+        )
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    event = {
+        "at": datetime.now(timezone.utc).isoformat(),
+        "symbol": req.symbol.upper(),
+        "feed": req.feed or config.broker.market_data_feed,
+        "auto_submit_enabled": False,
+        "portfolio_source": preview["portfolio_source"],
+        "market": preview["market"],
+        "order_proposal": preview["order_proposal"],
+        "latest_audit": preview["latest_audit"],
+    }
+    history = getattr(app.state, "paper_watch_history", [])
+    history.append(event)
+    app.state.paper_watch_history = history[-200:]
+    return event
+
+
+@app.get("/broker/paper/watch_history")
+@limiter.limit("30/minute")
+def broker_paper_watch_history(
+    request: Request,
+    limit: int = 20,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if limit <= 0 or limit > 200:
+        raise HTTPException(status_code=400, detail="limit_must_be_between_1_and_200")
+    history = getattr(app.state, "paper_watch_history", [])
+    return history[-limit:]

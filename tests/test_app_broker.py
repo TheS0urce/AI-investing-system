@@ -267,3 +267,70 @@ def test_strategy_preview_can_use_read_only_paper_account(monkeypatch):
     assert payload["portfolio_source"] == "alpaca_paper_account"
     assert payload["account"]["cash"] == "100000"
     assert payload["auto_submit_enabled"] is False
+
+
+def test_watch_tick_records_preview_without_auto_submit(monkeypatch):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    app.app.state.paper_watch_history = []
+
+    def fake_preview(**kwargs):
+        return {
+            "mode": "paper_preview_only",
+            "auto_submit_enabled": False,
+            "manual_confirmation_required": "SUBMIT_PAPER_ORDER",
+            "market": {
+                "symbol": kwargs["symbol"],
+                "price": 430.12,
+                "spread_bps": 2.3,
+                "volume_24h": 10_000_000,
+                "volatility_30d": 0.01,
+                "timestamp": "2026-05-22T00:00:00+00:00",
+            },
+            "portfolio_source": "alpaca_paper_account",
+            "account": None,
+            "order_proposal": None,
+            "latest_audit": {"event": "order_block", "severity": "WARN", "details": "test"},
+        }
+
+    monkeypatch.setattr(app, "run_paper_strategy_preview", fake_preview)
+
+    response = client(monkeypatch).post(
+        "/broker/paper/watch_tick",
+        headers={"X-API-Key": "test-key"},
+        json={"symbol": "QQQ", "feed": "iex", "use_paper_account": True},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["auto_submit_enabled"] is False
+    assert payload["portfolio_source"] == "alpaca_paper_account"
+    assert len(app.app.state.paper_watch_history) == 1
+
+
+def test_watch_history_returns_bounded_recent_events(monkeypatch):
+    app.app.state.paper_watch_history = [{"symbol": "A"}, {"symbol": "B"}]
+
+    response = client(monkeypatch).get(
+        "/broker/paper/watch_history",
+        headers={"X-API-Key": "test-key"},
+        params={"limit": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == [{"symbol": "B"}]
+
+
+def test_watch_history_rejects_invalid_limit(monkeypatch):
+    response = client(monkeypatch).get(
+        "/broker/paper/watch_history",
+        headers={"X-API-Key": "test-key"},
+        params={"limit": 0},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "limit_must_be_between_1_and_200"

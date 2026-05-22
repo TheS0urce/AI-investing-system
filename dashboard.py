@@ -222,6 +222,40 @@ with market_right:
             st.error(f"Strategy preview error: {e}")
 
 st.divider()
+st.subheader("Paper Watch Mode")
+watch_symbol = st.text_input("Watch symbol", value="QQQ").upper()
+watch_feed = st.selectbox("Watch feed", ["iex", "delayed_sip", "sip"], index=0)
+watch_left, watch_right = st.columns(2)
+
+with watch_left:
+    if st.button("Record Watch Tick"):
+        try:
+            response = requests.post(
+                f"{API_BASE}/broker/paper/watch_tick",
+                headers={**headers, "Content-Type": "application/json"},
+                json={"symbol": watch_symbol, "feed": watch_feed, "use_paper_account": True},
+                timeout=15,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Watch tick error: {e}")
+
+with watch_right:
+    if st.button("Refresh Watch History"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/watch_history",
+                headers=headers,
+                params={"limit": 20},
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Watch history error: {e}")
+
+st.divider()
 st.subheader("Recent Audit")
 try:
     response = requests.get(f"{API_BASE}/audit", headers=headers, timeout=5)
