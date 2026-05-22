@@ -82,6 +82,7 @@ Create clickable Mac launchers in `~/Applications`:
 ```
 
 Created apps:
+- `AI Investing Start API.app` installs/starts the persistent LaunchAgent service.
 - `AI Investing Health.app` checks `http://127.0.0.1:8001/health`.
 - `AI Investing Dashboard.app` starts the dashboard launcher in Terminal.
 - `AI Investing Stop API.app` confirms, then removes the persistent LaunchAgent service.
