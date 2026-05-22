@@ -8,6 +8,7 @@ from src.ai_investing.alpaca import (
     ensure_paper_credentials,
     mask_account_number,
     paper_order_result_from_payload,
+    paper_orders_from_payload,
 )
 from src.ai_investing.models import OrderProposal, Side
 
@@ -97,3 +98,28 @@ def test_paper_order_result_from_payload_masks_to_safe_fields():
     assert result.status == "accepted"
     assert result.symbol == "QQQ"
     assert result.side == "buy"
+
+
+def test_paper_orders_from_payload_returns_safe_order_results():
+    results = paper_orders_from_payload(
+        [
+            {
+                "id": "order-1",
+                "client_order_id": "client-1",
+                "status": "accepted",
+                "symbol": "QQQ",
+                "side": "buy",
+                "submitted_at": "2026-05-22T00:00:00Z",
+            },
+            {
+                "id": "order-2",
+                "client_order_id": "client-2",
+                "status": "filled",
+                "symbol": "SPY",
+                "side": "sell",
+                "submitted_at": "2026-05-22T00:01:00Z",
+            },
+        ]
+    )
+    assert [result.broker_order_id for result in results] == ["order-1", "order-2"]
+    assert [result.status for result in results] == ["accepted", "filled"]

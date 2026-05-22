@@ -259,6 +259,13 @@ curl -s -X POST http://127.0.0.1:8001/broker/paper/submit_order \
   -d '{"symbol":"QQQ","side":"BUY","quantity":0.01,"limit_price":430.00,"confirm":"SUBMIT_PAPER_ORDER"}'
 ```
 
+Reconcile recent paper orders:
+```bash
+python scripts/list_alpaca_paper_orders.py
+curl -s "http://127.0.0.1:8001/broker/paper/orders?status=all&limit=20" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+```
+
 ---
 
 ## 13) Live Trading GO/NO-GO Final Sign-off (One-Page Form)

@@ -10,7 +10,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
 
-from src.ai_investing.alpaca import AlpacaPaperCredentials, alpaca_order_payload, submit_paper_order
+from src.ai_investing.alpaca import AlpacaPaperCredentials, alpaca_order_payload, fetch_paper_orders, submit_paper_order
 from src.ai_investing.broker import broker_readiness
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioState, Side
@@ -240,6 +240,40 @@ def broker_paper_submit_order(
         "side": result.side,
         "submitted_at": result.submitted_at,
     }
+
+
+@app.get("/broker/paper/orders")
+@limiter.limit("20/minute")
+def broker_paper_orders(
+    request: Request,
+    status: str = "all",
+    limit: int = 20,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+    credentials = AlpacaPaperCredentials(
+        api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
+        secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
+        base_url=os.getenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets"),
+    )
+    try:
+        orders = fetch_paper_orders(credentials, status=status, limit=limit)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return [
+        {
+            "broker_order_id": order.broker_order_id,
+            "client_order_id": order.client_order_id,
+            "status": order.status,
+            "symbol": order.symbol,
+            "side": order.side,
+            "submitted_at": order.submitted_at,
+        }
+        for order in orders
+    ]
 
 
 @app.get("/audit")

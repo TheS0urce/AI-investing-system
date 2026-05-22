@@ -106,6 +106,10 @@ def paper_order_result_from_payload(payload: dict[str, Any]) -> AlpacaPaperOrder
     )
 
 
+def paper_orders_from_payload(payload: list[dict[str, Any]]) -> list[AlpacaPaperOrderResult]:
+    return [paper_order_result_from_payload(item) for item in payload]
+
+
 def fetch_paper_account(credentials: AlpacaPaperCredentials, timeout: float = 10.0) -> AlpacaAccountSummary:
     ensure_paper_credentials(credentials)
     request = Request(
@@ -127,6 +131,38 @@ def fetch_paper_account(credentials: AlpacaPaperCredentials, timeout: float = 10
         raise RuntimeError("alpaca_account_invalid_json") from exc
 
     return account_summary_from_payload(payload)
+
+
+def fetch_paper_orders(
+    credentials: AlpacaPaperCredentials,
+    status: str = "all",
+    limit: int = 20,
+    timeout: float = 10.0,
+) -> list[AlpacaPaperOrderResult]:
+    ensure_paper_credentials(credentials)
+    if limit <= 0 or limit > 100:
+        raise ValueError("limit_must_be_between_1_and_100")
+    request = Request(
+        f"{credentials.base_url.rstrip('/')}/v2/orders?status={status}&limit={limit}&direction=desc",
+        headers={
+            "APCA-API-KEY-ID": credentials.api_key,
+            "APCA-API-SECRET-KEY": credentials.secret_key,
+        },
+    )
+    context = ssl.create_default_context(cafile=certifi.where()) if certifi else ssl.create_default_context()
+    try:
+        with urlopen(request, timeout=timeout, context=context) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise RuntimeError(f"alpaca_orders_http_error:{exc.code}:{http_error_body(exc)}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"alpaca_orders_network_error:{exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("alpaca_orders_invalid_json") from exc
+
+    if not isinstance(payload, list):
+        raise RuntimeError("alpaca_orders_invalid_payload")
+    return paper_orders_from_payload(payload)
 
 
 def submit_paper_order(
