@@ -272,6 +272,41 @@ def watch_events_to_csv(events: list[dict]) -> str:
     return output.getvalue()
 
 
+def summarize_watch_events(events: list[dict]) -> dict[str, object]:
+    symbols: dict[str, int] = {}
+    feeds: dict[str, int] = {}
+    audit_events: dict[str, int] = {}
+    audit_details: dict[str, int] = {}
+    proposal_count = 0
+
+    for event in events:
+        symbol = str(event.get("symbol") or "unknown")
+        feed = str(event.get("feed") or "unknown")
+        symbols[symbol] = symbols.get(symbol, 0) + 1
+        feeds[feed] = feeds.get(feed, 0) + 1
+
+        if event.get("order_proposal") is not None:
+            proposal_count += 1
+
+        latest_audit = event.get("latest_audit") if isinstance(event.get("latest_audit"), dict) else {}
+        audit_event = str(latest_audit.get("event") or "none")
+        audit_detail = str(latest_audit.get("details") or "none")
+        audit_events[audit_event] = audit_events.get(audit_event, 0) + 1
+        audit_details[audit_detail] = audit_details.get(audit_detail, 0) + 1
+
+    return {
+        "total_ticks": len(events),
+        "proposal_count": proposal_count,
+        "blocked_or_no_proposal_count": len(events) - proposal_count,
+        "auto_submit_enabled": False,
+        "symbols": symbols,
+        "feeds": feeds,
+        "audit_events": audit_events,
+        "audit_details": audit_details,
+        "latest_event": events[-1] if events else None,
+    }
+
+
 def run_paper_strategy_preview(
     *,
     symbol: str,
@@ -680,6 +715,22 @@ def broker_paper_watch_history(
         return disk_history
     history = getattr(app.state, "paper_watch_history", [])
     return history[-limit:]
+
+
+@app.get("/broker/paper/watch_summary")
+@limiter.limit("30/minute")
+def broker_paper_watch_summary(
+    request: Request,
+    limit: int = 200,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if limit <= 0 or limit > 5_000:
+        raise HTTPException(status_code=400, detail="limit_must_be_between_1_and_5000")
+    events = read_watch_events(limit)
+    if not events:
+        events = getattr(app.state, "paper_watch_history", [])[-limit:]
+    return summarize_watch_events(events)
 
 
 @app.get("/broker/paper/watch_export")

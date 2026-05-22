@@ -255,7 +255,21 @@ with watch_right:
         except Exception as e:
             st.error(f"Watch history error: {e}")
 
-export_left, export_right = st.columns(2)
+summary_left, export_left, export_right = st.columns(3)
+with summary_left:
+    if st.button("Summarize Watch History"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/watch_summary",
+                headers=headers,
+                params={"limit": 500},
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Watch summary error: {e}")
+
 with export_left:
     if st.button("Export Watch CSV"):
         try:

@@ -283,6 +283,8 @@ Watch mode records what the strategy would have done. It does not submit orders.
 History is persisted locally to `logs/paper_watch_history.jsonl`, which is gitignored runtime data.
 Export watch history for review:
 ```bash
+curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=500" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=jsonl&limit=500" \

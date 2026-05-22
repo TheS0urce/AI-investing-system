@@ -423,6 +423,53 @@ def test_watch_export_returns_csv(monkeypatch, tmp_path):
     assert "430.12" in response.text
 
 
+def test_watch_summary_counts_ticks_and_audit_reasons(monkeypatch, tmp_path):
+    monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
+    app.append_watch_event(
+        {
+            "symbol": "QQQ",
+            "feed": "iex",
+            "auto_submit_enabled": False,
+            "order_proposal": None,
+            "latest_audit": {"event": "order_block", "details": "insufficient_net_edge_after_costs"},
+        }
+    )
+    app.append_watch_event(
+        {
+            "symbol": "QQQ",
+            "feed": "iex",
+            "auto_submit_enabled": False,
+            "order_proposal": {"symbol": "QQQ", "side": "BUY"},
+            "latest_audit": {"event": "manual_review_required", "details": "proposed BUY"},
+        }
+    )
+
+    response = client(monkeypatch).get(
+        "/broker/paper/watch_summary",
+        headers={"X-API-Key": "test-key"},
+        params={"limit": 10},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total_ticks"] == 2
+    assert payload["proposal_count"] == 1
+    assert payload["blocked_or_no_proposal_count"] == 1
+    assert payload["auto_submit_enabled"] is False
+    assert payload["audit_details"]["insufficient_net_edge_after_costs"] == 1
+
+
+def test_watch_summary_rejects_invalid_limit(monkeypatch):
+    response = client(monkeypatch).get(
+        "/broker/paper/watch_summary",
+        headers={"X-API-Key": "test-key"},
+        params={"limit": 0},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "limit_must_be_between_1_and_5000"
+
+
 def test_watch_export_returns_jsonl(monkeypatch, tmp_path):
     monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
     app.append_watch_event({"symbol": "QQQ"})

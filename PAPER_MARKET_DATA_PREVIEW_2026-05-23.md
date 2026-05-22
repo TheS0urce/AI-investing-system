@@ -104,13 +104,15 @@ Result after clean smoke test: `1`.
 Watch export:
 
 ```bash
+curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=jsonl&limit=5" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
-Result: CSV and JSONL exports returned the clean watch record.
+Result: summary, CSV, and JSONL endpoints returned the clean watch record.
 
 ## Safety Notes
 
@@ -121,3 +123,4 @@ Result: CSV and JSONL exports returned the clean watch record.
 - Watch mode records previews only and does not call the paper submit adapter.
 - Watch history is persisted as local gitignored JSONL runtime data.
 - Watch exports are read-only review artifacts.
+- Watch summary reports blocked/proposed action counts and keeps `auto_submit_enabled=false`.
