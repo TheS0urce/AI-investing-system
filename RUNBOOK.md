@@ -302,6 +302,7 @@ Expected current-stage result: `PAPER-GO`. This is not live-trading approval.
 
 Generate the consolidated read-only paper operations snapshot:
 ```bash
+.venv/bin/python scripts/paper_ops_snapshot.py
 curl -s "http://127.0.0.1:8001/broker/paper/ops_snapshot?watch_limit=500" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
