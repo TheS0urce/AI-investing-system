@@ -34,3 +34,36 @@ def test_summarize_daily_ops_reports_go_without_live_approval(tmp_path):
     assert summary["open_orders"] == 0
     assert summary["paper_submission_attempted"] is False
     assert summary["live_trading_approved"] is False
+    assert summary["failed_checks"] == []
+    assert summary["reasons"] == []
+
+
+def test_summarize_daily_ops_reports_no_go_reasons(tmp_path):
+    snapshot = {
+        "status": "PAPER-OPS-NO-GO",
+        "broker": {"status": "ALPACA-PAPER-READY", "mode": "paper", "live_enabled": False},
+        "readiness": {
+            "status": "PAPER-NO-GO",
+            "checks": [
+                {"name": "watch_history_has_evidence", "status": "FAIL", "detail": ""},
+                {"name": "live_routing_disabled", "status": "PASS", "detail": ""},
+            ],
+        },
+        "open_orders": [{"broker_order_id": "paper-order-1"}],
+        "dry_run_drill": {"status": "PAPER-DRILL-NO-GO"},
+        "paper_submission_attempted": False,
+        "live_trading_approved": False,
+    }
+
+    summary = paper_daily_ops.summarize_daily_ops(
+        snapshot,
+        tmp_path / "evidence.md",
+        "2026-05-23T03:30:00+00:00",
+    )
+
+    assert summary["status"] == "PAPER-DAILY-NO-GO"
+    assert summary["failed_checks"] == [{"name": "watch_history_has_evidence", "status": "FAIL", "detail": ""}]
+    assert "snapshot_status=PAPER-OPS-NO-GO" in summary["reasons"]
+    assert "watch_history_has_evidence=FAIL" in summary["reasons"]
+    assert "open_orders=1" in summary["reasons"]
+    assert "dry_run_status=PAPER-DRILL-NO-GO" in summary["reasons"]

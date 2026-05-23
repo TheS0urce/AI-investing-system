@@ -12,10 +12,25 @@ from paper_ops_evidence import default_output_path, format_ops_evidence
 from paper_ops_snapshot import ROOT, fetch_json, load_dotenv
 
 
+def failed_readiness_checks(readiness: dict[str, Any]) -> list[dict[str, Any]]:
+    checks = readiness.get("checks") if isinstance(readiness.get("checks"), list) else []
+    return [item for item in checks if isinstance(item, dict) and item.get("status") != "PASS"]
+
+
 def summarize_daily_ops(snapshot: dict[str, Any], evidence_path: Path, generated_at: str) -> dict[str, Any]:
     broker = snapshot.get("broker") if isinstance(snapshot.get("broker"), dict) else {}
     readiness = snapshot.get("readiness") if isinstance(snapshot.get("readiness"), dict) else {}
     drill = snapshot.get("dry_run_drill") if isinstance(snapshot.get("dry_run_drill"), dict) else {}
+    failed_checks = failed_readiness_checks(readiness)
+    reasons = []
+    if snapshot.get("status") != "PAPER-OPS-READY":
+        reasons.append(f"snapshot_status={snapshot.get('status')}")
+    if failed_checks:
+        reasons.extend(f"{item.get('name')}={item.get('status')}" for item in failed_checks)
+    if snapshot.get("open_orders"):
+        reasons.append(f"open_orders={len(snapshot.get('open_orders', []))}")
+    if drill.get("status") != "PAPER-DRILL-READY-NO-SUBMIT":
+        reasons.append(f"dry_run_status={drill.get('status')}")
 
     return {
         "status": "PAPER-DAILY-GO" if snapshot.get("status") == "PAPER-OPS-READY" else "PAPER-DAILY-NO-GO",
@@ -30,6 +45,8 @@ def summarize_daily_ops(snapshot: dict[str, Any], evidence_path: Path, generated
         "dry_run_status": drill.get("status"),
         "paper_submission_attempted": snapshot.get("paper_submission_attempted"),
         "live_trading_approved": snapshot.get("live_trading_approved"),
+        "failed_checks": failed_checks,
+        "reasons": reasons,
     }
 
 
