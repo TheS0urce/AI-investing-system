@@ -303,11 +303,13 @@ Expected current-stage result: `PAPER-GO`. This is not live-trading approval.
 Generate the consolidated read-only paper operations snapshot:
 ```bash
 .venv/bin/python scripts/paper_ops_snapshot.py
+.venv/bin/python scripts/paper_ops_evidence.py
 curl -s "http://127.0.0.1:8001/broker/paper/ops_snapshot?watch_limit=500" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
 Expected current-stage result: `PAPER-OPS-READY`, `live_trading_approved:false`, `paper_submission_attempted:false`, and `open_orders:[]`.
+The evidence helper writes a sanitized dated report such as `PAPER_OPS_EVIDENCE_YYYY-MM-DD.md`.
 
 Paper order preview is safe to inspect because it does not submit orders:
 ```bash
