@@ -129,6 +129,21 @@ with broker_right:
             st.error(f"Paper readiness error: {e}")
 
 with broker_right:
+    st.subheader("Dry-Run Paper Drill")
+    if st.button("Run Dry-Run Paper Drill"):
+        try:
+            response = requests.post(
+                f"{API_BASE}/broker/paper/order_drill",
+                headers={**headers, "Content-Type": "application/json"},
+                json={"symbol": "QQQ", "side": "BUY", "quantity": 0.001, "limit_price": 1.00},
+                timeout=15,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Paper drill error: {e}")
+
+with broker_right:
     st.subheader("Recent Paper Orders")
     if st.button("Refresh Paper Orders"):
         try:

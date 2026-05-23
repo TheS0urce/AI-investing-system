@@ -96,6 +96,13 @@ class PaperCancelRequest(BaseModel):
     confirm: str
 
 
+class PaperOrderDrillRequest(BaseModel):
+    symbol: str = "QQQ"
+    side: Side = Side.BUY
+    quantity: float = Field(default=0.001, gt=0)
+    limit_price: float = Field(default=1.00, gt=0)
+
+
 class PaperWatchTickRequest(BaseModel):
     symbol: str = "QQQ"
     feed: str | None = None
@@ -140,6 +147,17 @@ def serialize_account(account: AlpacaAccountSummary):
         "portfolio_value": account.portfolio_value,
         "pattern_day_trader": account.pattern_day_trader,
         "account_number_masked": account.account_number_masked,
+    }
+
+
+def serialize_paper_order_result(order):
+    return {
+        "broker_order_id": order.broker_order_id,
+        "client_order_id": order.client_order_id,
+        "status": order.status,
+        "symbol": order.symbol,
+        "side": order.side,
+        "submitted_at": order.submitted_at,
     }
 
 
@@ -348,6 +366,44 @@ def paper_readiness_payload(watch_limit: int = 500) -> dict[str, object]:
         "status": "PAPER-GO" if passed else "PAPER-NO-GO",
         "checks": checks,
         "watch_summary": watch_summary,
+    }
+
+
+def paper_order_drill_payload(req: PaperOrderDrillRequest) -> dict[str, object]:
+    readiness = paper_readiness_payload(watch_limit=500)
+    broker = broker_readiness(config.broker)
+    if broker.live_enabled:
+        raise HTTPException(status_code=403, detail="live_broker_routing_disabled_for_current_stage")
+    if config.broker.mode != "paper":
+        raise HTTPException(status_code=403, detail="broker_mode_must_be_paper")
+
+    try:
+        open_orders = fetch_paper_orders(alpaca_paper_credentials(), status="open", limit=20)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    order = OrderProposal(
+        symbol=req.symbol.upper(),
+        side=req.side,
+        quantity=req.quantity,
+        limit_price=req.limit_price,
+        expected_edge_bps=0.0,
+        reason="dashboard dry-run paper order drill",
+    )
+    return {
+        "status": "PAPER-DRILL-READY-NO-SUBMIT"
+        if readiness.get("status") == "PAPER-GO"
+        else "PAPER-DRILL-NO-GO",
+        "readiness_status": readiness.get("status"),
+        "open_orders_before": [serialize_paper_order_result(order) for order in open_orders],
+        "order_preview": {
+            "submit_enabled": False,
+            "broker_status": broker.status,
+            "payload": alpaca_order_payload(order),
+        },
+        "submit_attempted": False,
+        "cancel_attempted": False,
+        "next_required_confirmation": "SUBMIT_PAPER_ORDER",
     }
 
 
@@ -576,6 +632,12 @@ def broker_paper_order_preview(req: PaperOrderPreviewRequest, x_api_key: str | N
     }
 
 
+@app.post("/broker/paper/order_drill")
+def broker_paper_order_drill(req: PaperOrderDrillRequest, x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return paper_order_drill_payload(req)
+
+
 @app.post("/broker/paper/submit_order")
 @limiter.limit("5/minute")
 def broker_paper_submit_order(
@@ -635,14 +697,7 @@ def broker_paper_orders(
     except (RuntimeError, ValueError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return [
-        {
-            "broker_order_id": order.broker_order_id,
-            "client_order_id": order.client_order_id,
-            "status": order.status,
-            "symbol": order.symbol,
-            "side": order.side,
-            "submitted_at": order.submitted_at,
-        }
+        serialize_paper_order_result(order)
         for order in orders
     ]
 
@@ -683,17 +738,7 @@ def broker_paper_cancel_orders(
     system._audit("paper_orders_cancel_requested", "WARN", f"cancelled={len(cancelled)}")
     return {
         "cancel_requested": True,
-        "orders": [
-            {
-                "broker_order_id": order.broker_order_id,
-                "client_order_id": order.client_order_id,
-                "status": order.status,
-                "symbol": order.symbol,
-                "side": order.side,
-                "submitted_at": order.submitted_at,
-            }
-            for order in cancelled
-        ],
+        "orders": [serialize_paper_order_result(order) for order in cancelled],
     }
 
 

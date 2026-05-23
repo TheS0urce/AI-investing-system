@@ -558,3 +558,66 @@ def test_paper_readiness_rejects_invalid_watch_limit(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "watch_limit_must_be_between_1_and_5000"
+
+
+def test_paper_order_drill_returns_no_submit_payload(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
+    app.append_watch_event(
+        {
+            "symbol": "QQQ",
+            "feed": "iex",
+            "auto_submit_enabled": False,
+            "order_proposal": None,
+            "latest_audit": {"event": "order_block", "details": "test"},
+        }
+    )
+    monkeypatch.setattr(app, "fetch_paper_orders", lambda credentials, status, limit: [])
+
+    def fail_submit(*args, **kwargs):
+        raise AssertionError("paper order drill must not submit")
+
+    monkeypatch.setattr(app, "submit_paper_order", fail_submit)
+
+    response = client(monkeypatch).post(
+        "/broker/paper/order_drill",
+        headers={"X-API-Key": "test-key"},
+        json={"symbol": "QQQ", "side": "BUY", "quantity": 0.001, "limit_price": 1.0},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "PAPER-DRILL-READY-NO-SUBMIT"
+    assert payload["readiness_status"] == "PAPER-GO"
+    assert payload["submit_attempted"] is False
+    assert payload["order_preview"]["submit_enabled"] is False
+    assert payload["order_preview"]["payload"]["limit_price"] == "1.00"
+
+
+def test_paper_order_drill_reports_no_go_without_watch_evidence(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    app.app.state.paper_watch_history = []
+    monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "missing.jsonl")
+    monkeypatch.setattr(app, "fetch_paper_orders", lambda credentials, status, limit: [])
+
+    response = client(monkeypatch).post(
+        "/broker/paper/order_drill",
+        headers={"X-API-Key": "test-key"},
+        json={},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "PAPER-DRILL-NO-GO"
+    assert payload["readiness_status"] == "PAPER-NO-GO"
+    assert payload["submit_attempted"] is False

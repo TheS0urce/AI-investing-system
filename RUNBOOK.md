@@ -315,6 +315,16 @@ Run the guarded paper order drill in no-submit mode:
 
 Expected no-submit result: `PAPER-DRILL-READY-NO-SUBMIT`.
 
+Run the same no-submit drill through the local API/dashboard path:
+```bash
+curl -s -X POST http://127.0.0.1:8001/broker/paper/order_drill \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)" \
+  -d '{"symbol":"QQQ","side":"BUY","quantity":0.001,"limit_price":1.00}'
+```
+
+Expected result: `PAPER-DRILL-READY-NO-SUBMIT`, `submit_attempted:false`, and `open_orders_before:[]`.
+
 Paper order submission is manual-only and requires an exact confirmation phrase:
 ```bash
 curl -s -X POST http://127.0.0.1:8001/broker/paper/submit_order \

@@ -14,7 +14,7 @@ Trigger phrase: **Let's continue**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 39 tests
+- Final validation: `./scripts/check.sh` passed with 54 tests
 
 ## Completed Today
 
@@ -38,6 +38,7 @@ Trigger phrase: **Let's continue**
 - Paper readiness report script returns `PAPER-GO` for paper/watch stage
 - Paper readiness API endpoint and dashboard control return `PAPER-GO`
 - Guarded paper order drill helper returns `PAPER-DRILL-READY-NO-SUBMIT` by default
+- Dry-run paper order drill API endpoint and dashboard control return `PAPER-DRILL-READY-NO-SUBMIT`
 - LaunchAgent restarted with paper market-data endpoints live
 
 ## Evidence Files
@@ -67,6 +68,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" -H 
 .venv/bin/python scripts/paper_readiness_report.py
 curl -s "http://127.0.0.1:8001/broker/paper/readiness?watch_limit=500" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_order_drill.py
+curl -s -X POST http://127.0.0.1:8001/broker/paper/order_drill -H "Content-Type: application/json" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)" -d '{"symbol":"QQQ","side":"BUY","quantity":0.001,"limit_price":1.00}'
 ```
 
 ## Next Technical Goal
