@@ -85,6 +85,7 @@ Created apps:
 - `AI Investing Start API.app` installs/starts the persistent LaunchAgent service.
 - `AI Investing Health.app` checks `http://127.0.0.1:8001/health`.
 - `AI Investing Dashboard.app` starts the dashboard launcher in Terminal.
+- `AI Investing Daily Ops.app` runs the daily paper ops check and writes a sanitized evidence report.
 - `AI Investing Stop API.app` confirms, then removes the persistent LaunchAgent service.
 
 The dashboard launcher Terminal should remain open while the dashboard is in use.

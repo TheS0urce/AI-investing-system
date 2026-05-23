@@ -26,6 +26,11 @@ SPECS = {
         "symbol": "chart",
         "accent": "#f7f1d5",
     },
+    "AI Investing Daily Ops": {
+        "bg": ("#1f4d3a", "#f0c84b"),
+        "symbol": "check",
+        "accent": "#ffffff",
+    },
     "AI Investing Stop API": {
         "bg": ("#5f1515", "#ff4f4f"),
         "symbol": "stop",
@@ -99,6 +104,14 @@ def draw_stop(draw: ImageDraw.ImageDraw, accent: str) -> None:
     draw.arc((190, 190, 835, 835), 25, 335, fill=(255, 255, 255, 90), width=24)
 
 
+def draw_check(draw: ImageDraw.ImageDraw, accent: str) -> None:
+    draw.rounded_rectangle((205, 215, 820, 760), radius=70, fill=(0, 0, 0, 70), outline=(255, 255, 255, 80), width=16)
+    draw.line([(300, 525), (445, 665), (735, 350)], fill=accent, width=58, joint="curve")
+    draw.arc((245, 250, 780, 785), 205, 500, fill=(255, 255, 255, 110), width=24)
+    for x, height in ((330, 95), (455, 145), (580, 210), (705, 155)):
+        draw.rounded_rectangle((x, 300 + (220 - height), x + 54, 520), radius=20, fill=(255, 255, 255, 48))
+
+
 def render_icon(name: str, spec: dict[str, object]) -> Image.Image:
     size = 1024
     img = gradient(size, *spec["bg"]).convert("RGBA")
@@ -117,6 +130,8 @@ def render_icon(name: str, spec: dict[str, object]) -> Image.Image:
         draw_health(draw, accent)
     elif symbol == "chart":
         draw_dashboard(draw, accent)
+    elif symbol == "check":
+        draw_check(draw, accent)
     elif symbol == "stop":
         draw_stop(draw, accent)
 
