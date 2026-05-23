@@ -52,6 +52,7 @@ Trigger phrase: **Let's continue**
 - `PAPER_MARKET_DATA_PREVIEW_2026-05-23.md`
 - `PAPER_DRY_RUN_DRILL_2026-05-23.md`
 - `PAPER_OPS_EVIDENCE_2026-05-23.md`
+- `PAPER_WATCH_REPORT_2026-05-23.md`
 
 ## First Commands Tomorrow
 
@@ -69,6 +70,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
 curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+.venv/bin/python scripts/paper_watch_report.py
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_readiness_report.py
 .venv/bin/python scripts/paper_daily_ops.py
