@@ -113,6 +113,21 @@ with broker_left:
         except Exception as e:
             st.error(f"Paper preview error: {e}")
 
+with broker_left:
+    st.subheader("Paper Ops Snapshot")
+    if st.button("Run Paper Ops Snapshot"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/ops_snapshot",
+                headers=headers,
+                params={"watch_limit": 500},
+                timeout=20,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Paper ops snapshot error: {e}")
+
 with broker_right:
     st.subheader("Paper Readiness")
     if st.button("Run Paper Readiness"):

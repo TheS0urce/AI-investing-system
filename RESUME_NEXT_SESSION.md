@@ -39,6 +39,7 @@ Trigger phrase: **Let's continue**
 - Paper readiness API endpoint and dashboard control return `PAPER-GO`
 - Guarded paper order drill helper returns `PAPER-DRILL-READY-NO-SUBMIT` by default
 - Dry-run paper order drill API endpoint and dashboard control return `PAPER-DRILL-READY-NO-SUBMIT`
+- Consolidated paper ops snapshot endpoint and dashboard control return `PAPER-OPS-READY`
 - LaunchAgent restarted with paper market-data endpoints live
 
 ## Evidence Files
@@ -68,6 +69,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" -H "X-API-K
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_readiness_report.py
 curl -s "http://127.0.0.1:8001/broker/paper/readiness?watch_limit=500" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/ops_snapshot?watch_limit=500" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_order_drill.py
 curl -s -X POST http://127.0.0.1:8001/broker/paper/order_drill -H "Content-Type: application/json" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)" -d '{"symbol":"QQQ","side":"BUY","quantity":0.001,"limit_price":1.00}'
 ```

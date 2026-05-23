@@ -407,6 +407,55 @@ def paper_order_drill_payload(req: PaperOrderDrillRequest) -> dict[str, object]:
     }
 
 
+def paper_ops_snapshot_payload(watch_limit: int = 500) -> dict[str, object]:
+    broker = broker_readiness(config.broker)
+    readiness = paper_readiness_payload(watch_limit=watch_limit)
+    drill = paper_order_drill_payload(PaperOrderDrillRequest())
+
+    account_payload: dict[str, object] | None = None
+    account_error = ""
+    open_orders: list[object] = []
+    open_orders_error = ""
+
+    if broker.status == "ALPACA-PAPER-READY":
+        try:
+            account_payload = serialize_account(fetch_paper_account(alpaca_paper_credentials()))
+        except RuntimeError as exc:
+            account_error = str(exc)
+        try:
+            open_orders = fetch_paper_orders(alpaca_paper_credentials(), status="open", limit=20)
+        except (RuntimeError, ValueError) as exc:
+            open_orders_error = str(exc)
+
+    return {
+        "status": "PAPER-OPS-READY"
+        if readiness.get("status") == "PAPER-GO" and drill.get("status") == "PAPER-DRILL-READY-NO-SUBMIT"
+        else "PAPER-OPS-NO-GO",
+        "at": datetime.now(timezone.utc).isoformat(),
+        "broker": {
+            "provider": broker.provider,
+            "mode": broker.mode,
+            "live_enabled": broker.live_enabled,
+            "ready": broker.ready,
+            "status": broker.status,
+            "reason": broker.reason,
+        },
+        "policy": {
+            "manual_approval_required": config.policy.require_manual_approval,
+            "autonomous_execution": config.policy.autonomous_execution,
+            "kill_switch": config.policy.kill_switch,
+        },
+        "account": account_payload,
+        "account_error": account_error,
+        "open_orders": [serialize_paper_order_result(order) for order in open_orders],
+        "open_orders_error": open_orders_error,
+        "readiness": readiness,
+        "dry_run_drill": drill,
+        "live_trading_approved": False,
+        "paper_submission_attempted": False,
+    }
+
+
 def run_paper_strategy_preview(
     *,
     symbol: str,
@@ -636,6 +685,19 @@ def broker_paper_order_preview(req: PaperOrderPreviewRequest, x_api_key: str | N
 def broker_paper_order_drill(req: PaperOrderDrillRequest, x_api_key: str | None = Header(default=None)):
     require_api_key(x_api_key)
     return paper_order_drill_payload(req)
+
+
+@app.get("/broker/paper/ops_snapshot")
+@limiter.limit("10/minute")
+def broker_paper_ops_snapshot(
+    request: Request,
+    watch_limit: int = 500,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if watch_limit <= 0 or watch_limit > 5_000:
+        raise HTTPException(status_code=400, detail="watch_limit_must_be_between_1_and_5000")
+    return paper_ops_snapshot_payload(watch_limit=watch_limit)
 
 
 @app.post("/broker/paper/submit_order")

@@ -621,3 +621,58 @@ def test_paper_order_drill_reports_no_go_without_watch_evidence(monkeypatch, tmp
     assert payload["status"] == "PAPER-DRILL-NO-GO"
     assert payload["readiness_status"] == "PAPER-NO-GO"
     assert payload["submit_attempted"] is False
+
+
+def test_paper_ops_snapshot_combines_read_only_paper_state(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
+    app.append_watch_event(
+        {
+            "symbol": "QQQ",
+            "feed": "iex",
+            "auto_submit_enabled": False,
+            "order_proposal": None,
+            "latest_audit": {"event": "order_block", "details": "test"},
+        }
+    )
+    monkeypatch.setattr(app, "fetch_paper_account", lambda credentials: FakeAccountSummary())
+    monkeypatch.setattr(app, "fetch_paper_orders", lambda credentials, status, limit: [])
+
+    def fail_submit(*args, **kwargs):
+        raise AssertionError("paper ops snapshot must not submit")
+
+    monkeypatch.setattr(app, "submit_paper_order", fail_submit)
+
+    response = client(monkeypatch).get(
+        "/broker/paper/ops_snapshot",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "PAPER-OPS-READY"
+    assert payload["broker"]["mode"] == "paper"
+    assert payload["broker"]["live_enabled"] is False
+    assert payload["policy"]["autonomous_execution"] is False
+    assert payload["account"]["status"] == "ACTIVE"
+    assert payload["open_orders"] == []
+    assert payload["readiness"]["status"] == "PAPER-GO"
+    assert payload["dry_run_drill"]["submit_attempted"] is False
+    assert payload["live_trading_approved"] is False
+    assert payload["paper_submission_attempted"] is False
+
+
+def test_paper_ops_snapshot_rejects_invalid_watch_limit(monkeypatch):
+    response = client(monkeypatch).get(
+        "/broker/paper/ops_snapshot",
+        headers={"X-API-Key": "test-key"},
+        params={"watch_limit": 0},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "watch_limit_must_be_between_1_and_5000"
