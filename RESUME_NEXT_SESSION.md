@@ -14,7 +14,7 @@ Trigger phrase: **Let's continue**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 54 tests
+- Final validation: `./scripts/check.sh` passed with 65 tests
 
 ## Completed Today
 
@@ -40,7 +40,12 @@ Trigger phrase: **Let's continue**
 - Guarded paper order drill helper returns `PAPER-DRILL-READY-NO-SUBMIT` by default
 - Dry-run paper order drill API endpoint and dashboard control return `PAPER-DRILL-READY-NO-SUBMIT`
 - Consolidated paper ops snapshot endpoint and dashboard control return `PAPER-OPS-READY`
-- LaunchAgent restarted with paper market-data endpoints live
+- Read-only Alpaca paper clock endpoint returns market open/close state
+- Paper watch mode skips strategy evaluation when the market is closed by default
+- Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
+- Daily Ops includes market clock fields and NO-GO reasons
+- Mac launcher verification returns `LAUNCHERS-READY`
+- LaunchAgent restarted with paper market-data and paper clock endpoints live
 
 ## Evidence Files
 
@@ -86,11 +91,12 @@ curl -s -X POST http://127.0.0.1:8001/broker/paper/order_drill -H "Content-Type:
 
 Continue real-time paper trading, not live trading:
 
-1. Improve strategy signal quality before any live trading discussion.
-2. Keep paper submit manual-only behind exact confirmation phrase.
-3. Run paper submit/reconcile/cancel drill again.
-4. Prepare paper-trading GO/NO-GO checklist before any live discussion.
-5. Continue strategy-quality improvements only in paper/watch mode.
+1. Run market-hours paper watch sessions after Alpaca clock reports open.
+2. Improve strategy signal quality before any live trading discussion.
+3. Keep paper submit manual-only behind exact confirmation phrase.
+4. Run paper submit/reconcile/cancel drill again only with explicit operator approval.
+5. Prepare paper-trading GO/NO-GO checklist before any live discussion.
+6. Continue strategy-quality improvements only in paper/watch mode.
 
 ## Boundaries
 
