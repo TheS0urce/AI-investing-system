@@ -315,6 +315,7 @@ def test_watch_tick_records_preview_without_auto_submit(monkeypatch):
     app.config.broker.paper_secret_key_present = True
     app.app.state.paper_watch_history = []
     monkeypatch.setattr(app, "append_watch_event", lambda event: None)
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=True))
 
     def fake_preview(**kwargs):
         return {
@@ -347,7 +348,40 @@ def test_watch_tick_records_preview_without_auto_submit(monkeypatch):
     payload = response.json()
     assert payload["auto_submit_enabled"] is False
     assert payload["portfolio_source"] == "alpaca_paper_account"
+    assert payload["watch_status"] == "EVALUATED"
+    assert payload["clock"]["is_open"] is True
     assert len(app.app.state.paper_watch_history) == 1
+
+
+def test_watch_tick_skips_strategy_when_market_closed(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    app.app.state.paper_watch_history = []
+    monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=False))
+
+    def fail_preview(**kwargs):
+        raise AssertionError("closed market watch tick must not evaluate strategy by default")
+
+    monkeypatch.setattr(app, "run_paper_strategy_preview", fail_preview)
+
+    response = client(monkeypatch).post(
+        "/broker/paper/watch_tick",
+        headers={"X-API-Key": "test-key"},
+        json={"symbol": "QQQ", "feed": "iex", "use_paper_account": True},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["watch_status"] == "SKIPPED_MARKET_CLOSED"
+    assert payload["portfolio_source"] == "not_evaluated"
+    assert payload["market"] is None
+    assert payload["clock"]["is_open"] is False
+    assert payload["latest_audit"]["details"] == "market_closed"
 
 
 def test_watch_tick_persists_preview_history(monkeypatch, tmp_path):
@@ -359,6 +393,7 @@ def test_watch_tick_persists_preview_history(monkeypatch, tmp_path):
     app.config.broker.paper_secret_key_present = True
     app.app.state.paper_watch_history = []
     monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=True))
 
     def fake_preview(**kwargs):
         return {
@@ -466,6 +501,7 @@ def test_watch_summary_counts_ticks_and_audit_reasons(monkeypatch, tmp_path):
         {
             "symbol": "QQQ",
             "feed": "iex",
+            "watch_status": "EVALUATED",
             "auto_submit_enabled": False,
             "order_proposal": None,
             "latest_audit": {"event": "order_block", "details": "insufficient_net_edge_after_costs"},
@@ -475,6 +511,7 @@ def test_watch_summary_counts_ticks_and_audit_reasons(monkeypatch, tmp_path):
         {
             "symbol": "QQQ",
             "feed": "iex",
+            "watch_status": "SKIPPED_MARKET_CLOSED",
             "auto_submit_enabled": False,
             "order_proposal": {"symbol": "QQQ", "side": "BUY"},
             "latest_audit": {"event": "manual_review_required", "details": "proposed BUY"},
@@ -493,6 +530,8 @@ def test_watch_summary_counts_ticks_and_audit_reasons(monkeypatch, tmp_path):
     assert payload["proposal_count"] == 1
     assert payload["blocked_or_no_proposal_count"] == 1
     assert payload["auto_submit_enabled"] is False
+    assert payload["watch_statuses"]["EVALUATED"] == 1
+    assert payload["watch_statuses"]["SKIPPED_MARKET_CLOSED"] == 1
     assert payload["audit_details"]["insufficient_net_edge_after_costs"] == 1
 
 

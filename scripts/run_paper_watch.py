@@ -23,8 +23,21 @@ def load_dotenv(path: Path) -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def post_watch_tick(api_base: str, api_key: str, symbol: str, feed: str) -> dict[str, object]:
-    body = json.dumps({"symbol": symbol, "feed": feed, "use_paper_account": True}).encode("utf-8")
+def post_watch_tick(
+    api_base: str,
+    api_key: str,
+    symbol: str,
+    feed: str,
+    allow_closed_market: bool,
+) -> dict[str, object]:
+    body = json.dumps(
+        {
+            "symbol": symbol,
+            "feed": feed,
+            "use_paper_account": True,
+            "allow_closed_market": allow_closed_market,
+        }
+    ).encode("utf-8")
     request = urllib.request.Request(
         f"{api_base.rstrip('/')}/broker/paper/watch_tick",
         data=body,
@@ -44,6 +57,7 @@ def main() -> int:
     parser.add_argument("--feed", default="iex")
     parser.add_argument("--interval-seconds", type=float, default=60.0)
     parser.add_argument("--iterations", type=int, default=5)
+    parser.add_argument("--allow-closed-market", action="store_true")
     args = parser.parse_args()
 
     if args.interval_seconds < 5:
@@ -62,7 +76,7 @@ def main() -> int:
 
     for index in range(args.iterations):
         try:
-            event = post_watch_tick(api_base, api_key, args.symbol.upper(), args.feed)
+            event = post_watch_tick(api_base, api_key, args.symbol.upper(), args.feed, args.allow_closed_market)
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8")[:500]
             print(json.dumps({"status": "NO-GO", "reason": f"http_error:{exc.code}:{body}"}))

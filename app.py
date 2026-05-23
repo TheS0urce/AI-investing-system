@@ -108,6 +108,7 @@ class PaperWatchTickRequest(BaseModel):
     symbol: str = "QQQ"
     feed: str | None = None
     use_paper_account: bool = True
+    allow_closed_market: bool = False
     cash: float = 1_000.0
     equity: float = 1_000.0
     peak_equity: float = 1_000.0
@@ -253,6 +254,7 @@ def flatten_watch_event(event: dict) -> dict[str, object]:
         "at": event.get("at"),
         "symbol": event.get("symbol"),
         "feed": event.get("feed"),
+        "watch_status": event.get("watch_status"),
         "auto_submit_enabled": event.get("auto_submit_enabled"),
         "portfolio_source": event.get("portfolio_source"),
         "market_price": market.get("price"),
@@ -276,6 +278,7 @@ def watch_events_to_csv(events: list[dict]) -> str:
         "at",
         "symbol",
         "feed",
+        "watch_status",
         "auto_submit_enabled",
         "portfolio_source",
         "market_price",
@@ -303,6 +306,7 @@ def watch_events_to_csv(events: list[dict]) -> str:
 def summarize_watch_events(events: list[dict]) -> dict[str, object]:
     symbols: dict[str, int] = {}
     feeds: dict[str, int] = {}
+    watch_statuses: dict[str, int] = {}
     audit_events: dict[str, int] = {}
     audit_details: dict[str, int] = {}
     proposal_count = 0
@@ -310,8 +314,10 @@ def summarize_watch_events(events: list[dict]) -> dict[str, object]:
     for event in events:
         symbol = str(event.get("symbol") or "unknown")
         feed = str(event.get("feed") or "unknown")
+        watch_status = str(event.get("watch_status") or "unknown")
         symbols[symbol] = symbols.get(symbol, 0) + 1
         feeds[feed] = feeds.get(feed, 0) + 1
+        watch_statuses[watch_status] = watch_statuses.get(watch_status, 0) + 1
 
         if event.get("order_proposal") is not None:
             proposal_count += 1
@@ -329,6 +335,7 @@ def summarize_watch_events(events: list[dict]) -> dict[str, object]:
         "auto_submit_enabled": False,
         "symbols": symbols,
         "feeds": feeds,
+        "watch_statuses": watch_statuses,
         "audit_events": audit_events,
         "audit_details": audit_details,
         "latest_event": events[-1] if events else None,
@@ -867,6 +874,38 @@ def broker_paper_watch_tick(
     if broker.status != "ALPACA-PAPER-READY":
         raise HTTPException(status_code=403, detail=broker.status)
     try:
+        clock = fetch_paper_clock(alpaca_paper_credentials())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not clock.is_open and not req.allow_closed_market:
+        event = {
+            "at": datetime.now(timezone.utc).isoformat(),
+            "symbol": req.symbol.upper(),
+            "feed": req.feed or config.broker.market_data_feed,
+            "auto_submit_enabled": False,
+            "portfolio_source": "not_evaluated",
+            "market": None,
+            "clock": serialize_paper_clock(clock),
+            "watch_status": "SKIPPED_MARKET_CLOSED",
+            "order_proposal": None,
+            "latest_audit": {
+                "at": datetime.now(timezone.utc).isoformat(),
+                "event": "watch_skip",
+                "severity": "INFO",
+                "details": "market_closed",
+            },
+        }
+        history = getattr(app.state, "paper_watch_history", [])
+        history.append(event)
+        app.state.paper_watch_history = history[-200:]
+        try:
+            append_watch_event(event)
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"watch_history_write_failed:{exc}") from exc
+        return event
+
+    try:
         preview = run_paper_strategy_preview(
             symbol=req.symbol,
             feed=req.feed,
@@ -887,6 +926,8 @@ def broker_paper_watch_tick(
         "auto_submit_enabled": False,
         "portfolio_source": preview["portfolio_source"],
         "market": preview["market"],
+        "clock": serialize_paper_clock(clock),
+        "watch_status": "EVALUATED",
         "order_proposal": preview["order_proposal"],
         "latest_audit": preview["latest_audit"],
     }

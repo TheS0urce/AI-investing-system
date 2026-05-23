@@ -287,7 +287,8 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
-Watch mode records what the strategy would have done. It does not submit orders.
+Watch mode records what the strategy would have done during market hours. If the Alpaca paper clock says the market is closed, watch mode records `SKIPPED_MARKET_CLOSED` by default instead of evaluating the strategy. Use `--allow-closed-market` only for explicit diagnostics.
+Watch mode does not submit orders.
 History is persisted locally to `logs/paper_watch_history.jsonl`, which is gitignored runtime data.
 Export watch history for review:
 ```bash

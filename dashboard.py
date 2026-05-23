@@ -281,6 +281,7 @@ st.divider()
 st.subheader("Paper Watch Mode")
 watch_symbol = st.text_input("Watch symbol", value="QQQ").upper()
 watch_feed = st.selectbox("Watch feed", ["iex", "delayed_sip", "sip"], index=0)
+allow_closed_market = st.checkbox("Allow closed-market watch evaluation", value=False)
 watch_left, watch_right = st.columns(2)
 
 with watch_left:
@@ -289,7 +290,12 @@ with watch_left:
             response = requests.post(
                 f"{API_BASE}/broker/paper/watch_tick",
                 headers={**headers, "Content-Type": "application/json"},
-                json={"symbol": watch_symbol, "feed": watch_feed, "use_paper_account": True},
+                json={
+                    "symbol": watch_symbol,
+                    "feed": watch_feed,
+                    "use_paper_account": True,
+                    "allow_closed_market": allow_closed_market,
+                },
                 timeout=15,
             )
             response.raise_for_status()
