@@ -79,6 +79,7 @@ The dashboard remains an operator UI. Start it when needed with `./scripts/launc
 Create clickable Mac launchers in `~/Applications/AI Investment`:
 ```bash
 ./scripts/build_macos_apps.sh
+.venv/bin/python scripts/verify_macos_apps.py
 ```
 
 Created apps:

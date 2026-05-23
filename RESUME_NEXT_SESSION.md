@@ -59,6 +59,7 @@ Trigger phrase: **Let's continue**
 cd "/Users/michielburger/Claude Code/AI-investing-system"
 git status --short --branch
 ./scripts/check.sh
+.venv/bin/python scripts/verify_macos_apps.py
 .venv/bin/python scripts/check_alpaca_market_data.py
 curl -s http://127.0.0.1:8001/dashboard/summary -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/account" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
