@@ -49,6 +49,7 @@ Trigger phrase: **Let's continue**
 - `PAPER_ORDER_RECONCILIATION_2026-05-22.md`
 - `PAPER_ORDER_CANCEL_2026-05-22.md`
 - `PAPER_MARKET_DATA_PREVIEW_2026-05-23.md`
+- `PAPER_DRY_RUN_DRILL_2026-05-23.md`
 
 ## First Commands Tomorrow
 
