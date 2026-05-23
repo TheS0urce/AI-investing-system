@@ -10,6 +10,7 @@ from src.ai_investing.alpaca import (
     ensure_paper_credentials,
     mask_account_number,
     market_snapshot_from_alpaca_payload,
+    paper_clock_from_payload,
     paper_order_result_from_payload,
     paper_orders_from_payload,
 )
@@ -160,6 +161,23 @@ def test_paper_orders_from_payload_returns_safe_order_results():
     )
     assert [result.broker_order_id for result in results] == ["order-1", "order-2"]
     assert [result.status for result in results] == ["accepted", "filled"]
+
+
+def test_paper_clock_from_payload_returns_safe_fields():
+    clock = paper_clock_from_payload(
+        {
+            "timestamp": "2026-05-22T20:00:00Z",
+            "is_open": True,
+            "next_open": "2026-05-26T13:30:00Z",
+            "next_close": "2026-05-22T20:00:00Z",
+            "extra": "ignored",
+        }
+    )
+
+    assert clock.timestamp == "2026-05-22T20:00:00Z"
+    assert clock.is_open is True
+    assert clock.next_open == "2026-05-26T13:30:00Z"
+    assert clock.next_close == "2026-05-22T20:00:00Z"
 
 
 def test_paper_order_result_from_cancel_body_payload():

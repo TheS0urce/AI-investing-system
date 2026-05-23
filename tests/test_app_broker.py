@@ -26,6 +26,14 @@ class FakeAccountSummary:
     account_number_masked: str | None = "********1234"
 
 
+@dataclass(frozen=True)
+class FakeClock:
+    timestamp: str = "2026-05-22T20:00:00Z"
+    is_open: bool = True
+    next_open: str = "2026-05-26T13:30:00Z"
+    next_close: str = "2026-05-22T20:00:00Z"
+
+
 def client(monkeypatch):
     monkeypatch.setenv("AI_API_KEY", "test-key")
     return TestClient(app.app)
@@ -199,6 +207,35 @@ def test_paper_account_endpoint_returns_read_only_safe_fields(monkeypatch):
     assert response.status_code == 200
     assert response.json()["mode"] == "read_only"
     assert response.json()["account"]["account_number_masked"] == "********1234"
+    assert called == {"base_url": "https://paper-api.alpaca.markets"}
+
+
+def test_paper_clock_endpoint_returns_read_only_market_clock(monkeypatch):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+
+    called = {}
+
+    def fake_fetch_clock(credentials):
+        called["base_url"] = credentials.base_url
+        return FakeClock()
+
+    monkeypatch.setattr(app, "fetch_paper_clock", fake_fetch_clock)
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY", "paper-key")
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY", "paper-secret")
+    monkeypatch.setenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets")
+
+    response = client(monkeypatch).get("/broker/paper/clock", headers={"X-API-Key": "test-key"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "read_only"
+    assert payload["clock"]["is_open"] is True
+    assert payload["clock"]["next_open"] == "2026-05-26T13:30:00Z"
     assert called == {"base_url": "https://paper-api.alpaca.markets"}
 
 
@@ -641,6 +678,7 @@ def test_paper_ops_snapshot_combines_read_only_paper_state(monkeypatch, tmp_path
         }
     )
     monkeypatch.setattr(app, "fetch_paper_account", lambda credentials: FakeAccountSummary())
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=False))
     monkeypatch.setattr(app, "fetch_paper_orders", lambda credentials, status, limit: [])
 
     def fail_submit(*args, **kwargs):
@@ -660,6 +698,8 @@ def test_paper_ops_snapshot_combines_read_only_paper_state(monkeypatch, tmp_path
     assert payload["broker"]["live_enabled"] is False
     assert payload["policy"]["autonomous_execution"] is False
     assert payload["account"]["status"] == "ACTIVE"
+    assert payload["clock"]["is_open"] is False
+    assert payload["clock_error"] == ""
     assert payload["open_orders"] == []
     assert payload["readiness"]["status"] == "PAPER-GO"
     assert payload["dry_run_drill"]["submit_attempted"] is False

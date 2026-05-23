@@ -54,6 +54,14 @@ class AlpacaPaperOrderResult:
     submitted_at: str | None
 
 
+@dataclass(frozen=True)
+class AlpacaPaperClock:
+    timestamp: str
+    is_open: bool
+    next_open: str
+    next_close: str
+
+
 ALLOWED_MARKET_DATA_FEEDS = {"iex", "sip", "delayed_sip", "boats", "overnight", "otc"}
 
 
@@ -130,6 +138,15 @@ def paper_order_result_from_payload(payload: dict[str, Any]) -> AlpacaPaperOrder
 
 def paper_orders_from_payload(payload: list[dict[str, Any]]) -> list[AlpacaPaperOrderResult]:
     return [paper_order_result_from_payload(item) for item in payload]
+
+
+def paper_clock_from_payload(payload: dict[str, Any]) -> AlpacaPaperClock:
+    return AlpacaPaperClock(
+        timestamp=str(payload.get("timestamp", "")),
+        is_open=bool(payload.get("is_open", False)),
+        next_open=str(payload.get("next_open", "")),
+        next_close=str(payload.get("next_close", "")),
+    )
 
 
 def parse_alpaca_time(value: Any) -> datetime:
@@ -263,6 +280,31 @@ def fetch_paper_orders(
     if not isinstance(payload, list):
         raise RuntimeError("alpaca_orders_invalid_payload")
     return paper_orders_from_payload(payload)
+
+
+def fetch_paper_clock(credentials: AlpacaPaperCredentials, timeout: float = 10.0) -> AlpacaPaperClock:
+    ensure_paper_credentials(credentials)
+    request = Request(
+        f"{credentials.base_url.rstrip('/')}/v2/clock",
+        headers={
+            "APCA-API-KEY-ID": credentials.api_key,
+            "APCA-API-SECRET-KEY": credentials.secret_key,
+        },
+    )
+    context = ssl.create_default_context(cafile=certifi.where()) if certifi else ssl.create_default_context()
+    try:
+        with urlopen(request, timeout=timeout, context=context) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise RuntimeError(f"alpaca_clock_http_error:{exc.code}:{http_error_body(exc)}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"alpaca_clock_network_error:{exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("alpaca_clock_invalid_json") from exc
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("alpaca_clock_invalid_payload")
+    return paper_clock_from_payload(payload)
 
 
 def cancel_paper_orders(credentials: AlpacaPaperCredentials, timeout: float = 10.0) -> list[AlpacaPaperOrderResult]:

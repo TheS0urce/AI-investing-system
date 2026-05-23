@@ -19,6 +19,7 @@ def failed_readiness_checks(readiness: dict[str, Any]) -> list[dict[str, Any]]:
 
 def summarize_daily_ops(snapshot: dict[str, Any], evidence_path: Path, generated_at: str) -> dict[str, Any]:
     broker = snapshot.get("broker") if isinstance(snapshot.get("broker"), dict) else {}
+    clock = snapshot.get("clock") if isinstance(snapshot.get("clock"), dict) else {}
     readiness = snapshot.get("readiness") if isinstance(snapshot.get("readiness"), dict) else {}
     drill = snapshot.get("dry_run_drill") if isinstance(snapshot.get("dry_run_drill"), dict) else {}
     failed_checks = failed_readiness_checks(readiness)
@@ -40,6 +41,9 @@ def summarize_daily_ops(snapshot: dict[str, Any], evidence_path: Path, generated
         "broker_status": broker.get("status"),
         "broker_mode": broker.get("mode"),
         "live_enabled": broker.get("live_enabled"),
+        "market_is_open": clock.get("is_open"),
+        "next_open": clock.get("next_open"),
+        "next_close": clock.get("next_close"),
         "readiness_status": readiness.get("status"),
         "open_orders": len(snapshot.get("open_orders", [])),
         "dry_run_status": drill.get("status"),

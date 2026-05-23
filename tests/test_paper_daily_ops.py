@@ -15,6 +15,7 @@ def test_summarize_daily_ops_reports_go_without_live_approval(tmp_path):
     snapshot = {
         "status": "PAPER-OPS-READY",
         "broker": {"status": "ALPACA-PAPER-READY", "mode": "paper", "live_enabled": False},
+        "clock": {"is_open": False, "next_open": "2026-05-26T13:30:00Z", "next_close": "2026-05-22T20:00:00Z"},
         "readiness": {"status": "PAPER-GO"},
         "open_orders": [],
         "dry_run_drill": {"status": "PAPER-DRILL-READY-NO-SUBMIT"},
@@ -31,6 +32,8 @@ def test_summarize_daily_ops_reports_go_without_live_approval(tmp_path):
     assert summary["status"] == "PAPER-DAILY-GO"
     assert summary["broker_mode"] == "paper"
     assert summary["live_enabled"] is False
+    assert summary["market_is_open"] is False
+    assert summary["next_open"] == "2026-05-26T13:30:00Z"
     assert summary["open_orders"] == 0
     assert summary["paper_submission_attempted"] is False
     assert summary["live_trading_approved"] is False

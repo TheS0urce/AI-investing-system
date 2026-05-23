@@ -22,6 +22,7 @@ from src.ai_investing.alpaca import (
     alpaca_order_payload,
     cancel_paper_orders,
     fetch_paper_account,
+    fetch_paper_clock,
     fetch_stock_snapshot,
     fetch_paper_orders,
     submit_paper_order,
@@ -158,6 +159,15 @@ def serialize_paper_order_result(order):
         "symbol": order.symbol,
         "side": order.side,
         "submitted_at": order.submitted_at,
+    }
+
+
+def serialize_paper_clock(clock):
+    return {
+        "timestamp": clock.timestamp,
+        "is_open": clock.is_open,
+        "next_open": clock.next_open,
+        "next_close": clock.next_close,
     }
 
 
@@ -416,12 +426,18 @@ def paper_ops_snapshot_payload(watch_limit: int = 500) -> dict[str, object]:
     account_error = ""
     open_orders: list[object] = []
     open_orders_error = ""
+    clock_payload: dict[str, object] | None = None
+    clock_error = ""
 
     if broker.status == "ALPACA-PAPER-READY":
         try:
             account_payload = serialize_account(fetch_paper_account(alpaca_paper_credentials()))
         except RuntimeError as exc:
             account_error = str(exc)
+        try:
+            clock_payload = serialize_paper_clock(fetch_paper_clock(alpaca_paper_credentials()))
+        except RuntimeError as exc:
+            clock_error = str(exc)
         try:
             open_orders = fetch_paper_orders(alpaca_paper_credentials(), status="open", limit=20)
         except (RuntimeError, ValueError) as exc:
@@ -447,6 +463,8 @@ def paper_ops_snapshot_payload(watch_limit: int = 500) -> dict[str, object]:
         },
         "account": account_payload,
         "account_error": account_error,
+        "clock": clock_payload,
+        "clock_error": clock_error,
         "open_orders": [serialize_paper_order_result(order) for order in open_orders],
         "open_orders_error": open_orders_error,
         "readiness": readiness,
@@ -607,6 +625,24 @@ def broker_paper_account(request: Request, x_api_key: str | None = Header(defaul
         "source": "alpaca_paper_account",
         "mode": "read_only",
         "account": serialize_account(account),
+    }
+
+
+@app.get("/broker/paper/clock")
+@limiter.limit("20/minute")
+def broker_paper_clock(request: Request, x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+    try:
+        clock = fetch_paper_clock(alpaca_paper_credentials())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "source": "alpaca_paper_clock",
+        "mode": "read_only",
+        "clock": serialize_paper_clock(clock),
     }
 
 

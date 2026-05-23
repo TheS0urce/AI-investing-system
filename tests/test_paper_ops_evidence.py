@@ -29,6 +29,12 @@ def test_format_ops_evidence_keeps_safety_state_explicit():
             "pattern_day_trader": False,
             "account_number_masked": "********MARJ",
         },
+        "clock": {
+            "timestamp": "2026-05-22T20:00:00Z",
+            "is_open": False,
+            "next_open": "2026-05-26T13:30:00Z",
+            "next_close": "2026-05-22T20:00:00Z",
+        },
         "open_orders": [],
         "readiness": {
             "status": "PAPER-GO",
@@ -44,6 +50,8 @@ def test_format_ops_evidence_keeps_safety_state_explicit():
 
     assert "Snapshot status: `PAPER-OPS-READY`" in report
     assert "Live routing enabled: `False`" in report
+    assert "Is open: `False`" in report
+    assert "Next open: `2026-05-26T13:30:00Z`" in report
     assert "Dry-run submit attempted: `False`" in report
     assert "Live trading approved: `False`" in report
     assert "This evidence does not approve live trading." in report

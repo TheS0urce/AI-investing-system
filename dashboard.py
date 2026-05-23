@@ -244,6 +244,17 @@ with market_right:
             st.json(response.json())
         except Exception as e:
             st.error(f"Paper account error: {e}")
+    if st.button("Fetch Paper Market Clock"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/clock",
+                headers=headers,
+                timeout=15,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Paper clock error: {e}")
     if st.button("Run Paper Strategy Preview"):
         try:
             response = requests.get(

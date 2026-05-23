@@ -20,6 +20,7 @@ def format_ops_evidence(snapshot: dict[str, Any], generated_at: str) -> str:
     broker = snapshot.get("broker") if isinstance(snapshot.get("broker"), dict) else {}
     policy = snapshot.get("policy") if isinstance(snapshot.get("policy"), dict) else {}
     account = snapshot.get("account") if isinstance(snapshot.get("account"), dict) else {}
+    clock = snapshot.get("clock") if isinstance(snapshot.get("clock"), dict) else {}
     readiness = snapshot.get("readiness") if isinstance(snapshot.get("readiness"), dict) else {}
     drill = snapshot.get("dry_run_drill") if isinstance(snapshot.get("dry_run_drill"), dict) else {}
     watch_summary = readiness.get("watch_summary") if isinstance(readiness.get("watch_summary"), dict) else {}
@@ -53,6 +54,13 @@ def format_ops_evidence(snapshot: dict[str, Any], generated_at: str) -> str:
             f"- Portfolio value: `{account.get('portfolio_value', 'unknown')}`",
             f"- Pattern day trader: `{account.get('pattern_day_trader', 'unknown')}`",
             f"- Account number: `{account.get('account_number_masked', 'masked')}`",
+            "",
+            "## Paper Market Clock",
+            "",
+            f"- Is open: `{clock.get('is_open', 'unknown')}`",
+            f"- Timestamp: `{clock.get('timestamp', 'unknown')}`",
+            f"- Next open: `{clock.get('next_open', 'unknown')}`",
+            f"- Next close: `{clock.get('next_close', 'unknown')}`",
             "",
             "## Safety Evidence",
             "",
