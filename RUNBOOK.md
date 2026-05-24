@@ -268,6 +268,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/session_plan" \
 Expected closed-market result: `MARKET-CLOSED-WAIT`.
 Expected open-market result: `MARKET-OPEN-RUN-WATCH`, with the recommended read-only watch command.
 The session plan also includes operator-local fields such as `next_open_operator`; by default these use `Pacific/Auckland`, or `AI_OPERATOR_TIMEZONE` if configured.
+It also includes countdown fields such as `time_until_next_open` and `time_until_next_close`.
 
 Run the paper market-open preflight before any market-hours watch session:
 ```bash
@@ -277,6 +278,7 @@ Run the paper market-open preflight before any market-hours watch session:
 Expected open-market result: `PAPER-MARKET-OPEN-GO`.
 Expected closed-market result: `PAPER-MARKET-OPEN-NO-GO` with `session_plan=MARKET-CLOSED-WAIT`.
 The preflight mirrors the local operator time fields so the next actionable window is clear without manual timezone conversion.
+It also mirrors the countdown fields to make closed-market NO-GO results actionable.
 
 Fetch a read-only paper market snapshot:
 ```bash

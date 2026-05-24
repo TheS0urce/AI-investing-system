@@ -20,6 +20,7 @@ def test_preflight_reports_go_when_all_gates_pass():
             "status": "MARKET-OPEN-RUN-WATCH",
             "market_is_open": True,
             "next_close": "2026-05-26T16:00:00-04:00",
+            "time_until_next_close": "6h 0m",
             "operator_timezone": "Pacific/Auckland",
             "next_close_operator": "2026-05-27T08:00:00+12:00",
             "recommended_command": ".venv/bin/python scripts/run_paper_watch.py",
@@ -33,6 +34,7 @@ def test_preflight_reports_go_when_all_gates_pass():
     assert result["reasons"] == []
     assert result["operator_timezone"] == "Pacific/Auckland"
     assert result["next_close_operator"] == "2026-05-27T08:00:00+12:00"
+    assert result["time_until_next_close"] == "6h 0m"
     assert result["auto_submit_enabled"] is False
     assert result["live_trading_approved"] is False
 
