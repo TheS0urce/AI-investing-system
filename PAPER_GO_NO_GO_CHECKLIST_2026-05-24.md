@@ -52,8 +52,8 @@
 
 ### 9. Read-only watch evidence captured
 
-- Command: `.venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30`
-- GO condition: Watch completes without auto-submit and writes history.
+- Command: `.venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30`
+- GO condition: Market-open guard passes, watch completes without auto-submit, and history is written.
 
 ### 10. Watch report written
 
