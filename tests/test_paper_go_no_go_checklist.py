@@ -26,6 +26,7 @@ def test_checklist_includes_market_and_evidence_gates():
     items = {item["gate"]: item for item in paper_go_no_go_checklist.checklist_items()}
 
     assert items["Market session is open"]["go_condition"] == "Status is MARKET-OPEN-RUN-WATCH."
+    assert items["Market-open preflight passes"]["go_condition"] == "Status is PAPER-MARKET-OPEN-GO."
     assert "paper_daily_ops.py" in items["Daily ops is green"]["command"]
     assert "paper_strategy_scenarios.py --write-report" in items["Scenario evidence is current"]["command"]
     assert "run_market_open_paper_watch.py" in items["Read-only watch evidence captured"]["command"]

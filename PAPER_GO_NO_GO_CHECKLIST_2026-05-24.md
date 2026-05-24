@@ -45,17 +45,22 @@
 - Command: `.venv/bin/python scripts/paper_market_session_plan.py`
 - GO condition: Status is MARKET-OPEN-RUN-WATCH.
 
-### 8. No open paper orders
+### 8. Market-open preflight passes
+
+- Command: `.venv/bin/python scripts/paper_market_open_preflight.py`
+- GO condition: Status is PAPER-MARKET-OPEN-GO.
+
+### 9. No open paper orders
 
 - Command: `.venv/bin/python scripts/list_alpaca_paper_orders.py --status open --limit 20`
 - GO condition: Open order list is empty before starting a watch session.
 
-### 9. Read-only watch evidence captured
+### 10. Read-only watch evidence captured
 
 - Command: `.venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30`
 - GO condition: Market-open guard passes, watch completes without auto-submit, and history is written.
 
-### 10. Watch report written
+### 11. Watch report written
 
 - Command: `.venv/bin/python scripts/paper_watch_report.py`
 - GO condition: Report shows proposals, blocks, and watch statuses for review.

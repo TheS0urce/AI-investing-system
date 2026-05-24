@@ -47,6 +47,11 @@ def checklist_items() -> list[dict[str, str]]:
             "go_condition": "Status is MARKET-OPEN-RUN-WATCH.",
         },
         {
+            "gate": "Market-open preflight passes",
+            "command": ".venv/bin/python scripts/paper_market_open_preflight.py",
+            "go_condition": "Status is PAPER-MARKET-OPEN-GO.",
+        },
+        {
             "gate": "No open paper orders",
             "command": ".venv/bin/python scripts/list_alpaca_paper_orders.py --status open --limit 20",
             "go_condition": "Open order list is empty before starting a watch session.",

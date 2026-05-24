@@ -268,6 +268,14 @@ curl -s "http://127.0.0.1:8001/broker/paper/session_plan" \
 Expected closed-market result: `MARKET-CLOSED-WAIT`.
 Expected open-market result: `MARKET-OPEN-RUN-WATCH`, with the recommended read-only watch command.
 
+Run the paper market-open preflight before any market-hours watch session:
+```bash
+.venv/bin/python scripts/paper_market_open_preflight.py
+```
+
+Expected open-market result: `PAPER-MARKET-OPEN-GO`.
+Expected closed-market result: `PAPER-MARKET-OPEN-NO-GO` with `session_plan=MARKET-CLOSED-WAIT`.
+
 Fetch a read-only paper market snapshot:
 ```bash
 curl -s "http://127.0.0.1:8001/broker/paper/market_snapshot?symbol=QQQ&feed=iex" \
@@ -289,6 +297,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex
 Record one read-only paper watch tick and inspect recent history:
 ```bash
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
+.venv/bin/python scripts/paper_market_open_preflight.py
 .venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
 curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
