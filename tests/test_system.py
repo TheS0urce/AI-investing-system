@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, PortfolioState
 from src.ai_investing.strategy import SimpleMomentumStrategy
@@ -36,6 +38,26 @@ def test_process_tick_logs_block_when_edge_fails():
     assert len(system.audit_log) >= 1
     assert system.audit_log[-1].event == "order_block"
     assert system.audit_log[-1].details == "insufficient_net_edge_after_costs"
+
+
+def test_process_tick_proposes_order_for_strong_signal():
+    cfg = SystemConfig()
+    system = InvestingSystem(cfg, SimpleMomentumStrategy())
+    market = base_market()
+    market = MarketSnapshot(
+        symbol=market.symbol,
+        price=market.price,
+        spread_bps=market.spread_bps,
+        volume_24h=market.volume_24h,
+        volatility_30d=0.0001,
+        timestamp=market.timestamp,
+    )
+
+    order = system.process_tick(market, base_portfolio())
+
+    assert order is not None
+    assert order.expected_edge_bps == pytest.approx(10.0632)
+    assert system.audit_log[-1].event == "manual_review_required"
 
 
 def test_process_tick_blocks_bad_market():

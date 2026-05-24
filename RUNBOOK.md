@@ -311,7 +311,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/readiness?watch_limit=500" \
 ```
 
 Expected current-stage result: `PAPER-GO`. This is not live-trading approval.
-Expected strategy-quality result before improvement: `STRATEGY-QUALITY-IMPROVEMENT-REQUIRED`.
+Expected strategy-quality result: `STRATEGY-QUALITY-OK`. This only means the model can clear the existing edge gate under strong-signal conditions; it is not live-trading approval.
 
 Generate the consolidated read-only paper operations snapshot:
 ```bash

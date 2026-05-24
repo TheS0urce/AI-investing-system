@@ -14,7 +14,7 @@ Trigger phrase: **Let's continue**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 67 tests
+- Final validation: `./scripts/check.sh` passed with 71 tests
 
 ## Completed Today
 
@@ -44,6 +44,7 @@ Trigger phrase: **Let's continue**
 - Paper watch mode skips strategy evaluation when the market is closed by default
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
 - Paper market session planner returns `MARKET-CLOSED-WAIT` until next paper market open
+- Strategy quality diagnostic returns `STRATEGY-QUALITY-OK` after expected-edge model improvement
 - Daily Ops includes market clock fields and NO-GO reasons
 - Mac launcher verification returns `LAUNCHERS-READY`
 - LaunchAgent restarted with paper market-data and paper clock endpoints live

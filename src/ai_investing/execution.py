@@ -3,6 +3,9 @@ from __future__ import annotations
 from .models import OrderProposal, PortfolioState, Side, Signal
 
 
+EXPECTED_EDGE_BPS_PER_CONVICTION = 14.0
+
+
 class ExecutionPlanner:
     def signal_to_order(self, signal: Signal, price: float, portfolio: PortfolioState) -> OrderProposal | None:
         if signal.model_confidence < 0.55:
@@ -14,7 +17,7 @@ class ExecutionPlanner:
             return None
 
         side = Side.BUY if signal.conviction > 0 else Side.SELL
-        expected_edge_bps = 12 * abs(signal.conviction)
+        expected_edge_bps = EXPECTED_EDGE_BPS_PER_CONVICTION * abs(signal.conviction)
 
         return OrderProposal(
             symbol=signal.symbol,

@@ -8,6 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.ai_investing.config import SystemConfig
+from src.ai_investing.execution import EXPECTED_EDGE_BPS_PER_CONVICTION
 
 
 @dataclass(frozen=True)
@@ -28,7 +29,7 @@ def build_strategy_quality_report(config: SystemConfig | None = None) -> Strateg
     # SimpleMomentumStrategy conviction is maxed when volatility_30d is zero:
     # conviction = (0.06 - volatility_30d) * 12.
     max_theoretical_conviction = min(1.0, max(-1.0, 0.06 * 12))
-    max_theoretical_edge_bps = 12 * abs(max_theoretical_conviction)
+    max_theoretical_edge_bps = EXPECTED_EDGE_BPS_PER_CONVICTION * abs(max_theoretical_conviction)
     required_edge_bps = config.costs.fee_bps + config.costs.slippage_bps + config.costs.min_net_edge_bps
     edge_shortfall_bps = max(0.0, required_edge_bps - max_theoretical_edge_bps)
     status = "STRATEGY-QUALITY-OK" if edge_shortfall_bps == 0 else "STRATEGY-QUALITY-IMPROVEMENT-REQUIRED"

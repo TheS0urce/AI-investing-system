@@ -15,14 +15,14 @@ sys.modules["strategy_quality_report"] = strategy_quality_report
 SPEC.loader.exec_module(strategy_quality_report)
 
 
-def test_strategy_quality_report_flags_default_edge_shortfall():
+def test_strategy_quality_report_passes_after_edge_model_improvement():
     report = strategy_quality_report.build_strategy_quality_report()
 
-    assert report.status == "STRATEGY-QUALITY-IMPROVEMENT-REQUIRED"
-    assert report.max_theoretical_edge_bps == 8.64
+    assert report.status == "STRATEGY-QUALITY-OK"
+    assert report.max_theoretical_edge_bps == 10.08
     assert report.required_edge_bps == 9.0
-    assert report.edge_shortfall_bps == 0.36
-    assert report.conclusion == "current_strategy_cannot_pass_net_edge_gate_with_default_costs"
+    assert report.edge_shortfall_bps == 0.0
+    assert report.conclusion == "current_strategy_can_pass_net_edge_gate"
 
 
 def test_strategy_quality_report_can_pass_with_lower_cost_assumption():
