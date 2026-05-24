@@ -511,7 +511,10 @@ def paper_market_session_plan_payload() -> dict[str, object]:
     return {
         "source": "alpaca_paper_clock",
         "mode": "read_only",
-        **session_plan_from_clock(serialize_paper_clock(clock)),
+        **session_plan_from_clock(
+            serialize_paper_clock(clock),
+            timezone_name=os.getenv("AI_OPERATOR_TIMEZONE", "Pacific/Auckland"),
+        ),
     }
 
 

@@ -45,6 +45,7 @@ Trigger phrase: **Let's continue**
 - Paper watch mode skips strategy evaluation when the market is closed by default
 - Guarded market-open paper watch launcher refuses to run while market is closed
 - Paper market-open preflight combines session plan, readiness, strategy quality, and open-order checks
+- Session plan and preflight include operator-local market times, defaulting to `Pacific/Auckland`
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
 - Paper market session planner returns `MARKET-CLOSED-WAIT` until next paper market open
 - Strategy quality diagnostic returns `STRATEGY-QUALITY-OK` after expected-edge model improvement
