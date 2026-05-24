@@ -10,6 +10,7 @@ EXPECTED_APPS = [
     "AI Investing Health.app",
     "AI Investing Dashboard.app",
     "AI Investing Daily Ops.app",
+    "AI Investing Market Preflight.app",
     "AI Investing Stop API.app",
 ]
 

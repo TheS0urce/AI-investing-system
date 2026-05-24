@@ -46,6 +46,7 @@ Trigger phrase: **Let's continue**
 - Guarded market-open paper watch launcher refuses to run while market is closed
 - Paper market-open preflight combines session plan, readiness, strategy quality, and open-order checks
 - Paper market-open preflight API endpoint and dashboard control are available
+- `AI Investing Market Preflight.app` is installed in `~/Applications/AI Investment`
 - Session plan and preflight include operator-local market times, defaulting to `Pacific/Auckland`
 - Session plan and preflight include `time_until_next_open` / `time_until_next_close` countdown fields
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
@@ -58,6 +59,7 @@ Trigger phrase: **Let's continue**
 - Paper GO/NO-GO checklist generated `PAPER_GO_NO_GO_CHECKLIST_2026-05-24.md`
 - Daily Ops includes market clock fields and NO-GO reasons
 - Mac launcher verification returns `LAUNCHERS-READY`
+- Mac launcher verification expects 6 apps including Market Preflight
 - LaunchAgent restarted with paper market-data and paper clock endpoints live
 
 ## Evidence Files

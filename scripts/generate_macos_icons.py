@@ -31,6 +31,11 @@ SPECS = {
         "symbol": "check",
         "accent": "#ffffff",
     },
+    "AI Investing Market Preflight": {
+        "bg": ("#263238", "#00c2a8"),
+        "symbol": "gate",
+        "accent": "#f8ff9c",
+    },
     "AI Investing Stop API": {
         "bg": ("#5f1515", "#ff4f4f"),
         "symbol": "stop",
@@ -112,6 +117,16 @@ def draw_check(draw: ImageDraw.ImageDraw, accent: str) -> None:
         draw.rounded_rectangle((x, 300 + (220 - height), x + 54, 520), radius=20, fill=(255, 255, 255, 48))
 
 
+def draw_gate(draw: ImageDraw.ImageDraw, accent: str) -> None:
+    draw.rounded_rectangle((195, 225, 830, 765), radius=72, fill=(0, 0, 0, 78), outline=(255, 255, 255, 85), width=16)
+    draw.arc((245, 180, 780, 715), 205, 500, fill=(255, 255, 255, 105), width=24)
+    draw.line([(310, 620), (310, 390), (512, 285), (715, 390), (715, 620)], fill=accent, width=42, joint="curve")
+    draw.line([(310, 620), (715, 620)], fill=accent, width=42)
+    draw.line([(512, 305), (512, 620)], fill=(255, 255, 255, 170), width=26)
+    draw.ellipse((455, 430, 570, 545), outline=(255, 255, 255, 190), width=22)
+    draw.line([(570, 488), (690, 488)], fill=(255, 255, 255, 170), width=20)
+
+
 def render_icon(name: str, spec: dict[str, object]) -> Image.Image:
     size = 1024
     img = gradient(size, *spec["bg"]).convert("RGBA")
@@ -132,6 +147,8 @@ def render_icon(name: str, spec: dict[str, object]) -> Image.Image:
         draw_dashboard(draw, accent)
     elif symbol == "check":
         draw_check(draw, accent)
+    elif symbol == "gate":
+        draw_gate(draw, accent)
     elif symbol == "stop":
         draw_stop(draw, accent)
 
