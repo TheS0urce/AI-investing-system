@@ -261,7 +261,12 @@ Fetch the read-only Alpaca paper market clock:
 curl -s "http://127.0.0.1:8001/broker/paper/clock" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_market_session_plan.py
+curl -s "http://127.0.0.1:8001/broker/paper/session_plan" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
+
+Expected closed-market result: `MARKET-CLOSED-WAIT`.
+Expected open-market result: `MARKET-OPEN-RUN-WATCH`, with the recommended read-only watch command.
 
 Fetch a read-only paper market snapshot:
 ```bash

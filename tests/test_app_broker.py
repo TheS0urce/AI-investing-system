@@ -239,6 +239,53 @@ def test_paper_clock_endpoint_returns_read_only_market_clock(monkeypatch):
     assert called == {"base_url": "https://paper-api.alpaca.markets"}
 
 
+def test_paper_session_plan_waits_when_market_closed(monkeypatch):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=False))
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY", "paper-key")
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY", "paper-secret")
+    monkeypatch.setenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets")
+
+    response = client(monkeypatch).get("/broker/paper/session_plan", headers={"X-API-Key": "test-key"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["mode"] == "read_only"
+    assert payload["status"] == "MARKET-CLOSED-WAIT"
+    assert payload["market_is_open"] is False
+    assert payload["recommended_command"] is None
+
+
+def test_paper_session_plan_recommends_watch_when_market_open(monkeypatch):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=True))
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY", "paper-key")
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY", "paper-secret")
+    monkeypatch.setenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets")
+
+    response = client(monkeypatch).get("/broker/paper/session_plan", headers={"X-API-Key": "test-key"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "MARKET-OPEN-RUN-WATCH"
+    assert payload["market_is_open"] is True
+    assert payload["recommended_command"] == (
+        ".venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30"
+    )
+
+
 def test_strategy_quality_endpoint_is_read_only(monkeypatch):
     response = client(monkeypatch).get("/broker/paper/strategy_quality", headers={"X-API-Key": "test-key"})
 

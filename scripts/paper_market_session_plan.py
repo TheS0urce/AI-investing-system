@@ -6,7 +6,10 @@ import os
 import urllib.error
 from typing import Any
 
-from paper_ops_snapshot import fetch_json, load_dotenv, ROOT
+try:
+    from scripts.paper_ops_snapshot import ROOT, fetch_json, load_dotenv
+except ModuleNotFoundError:
+    from paper_ops_snapshot import ROOT, fetch_json, load_dotenv
 
 
 def session_plan_from_clock(clock: dict[str, Any]) -> dict[str, Any]:

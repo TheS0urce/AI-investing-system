@@ -41,6 +41,7 @@ Trigger phrase: **Let's continue**
 - Dry-run paper order drill API endpoint and dashboard control return `PAPER-DRILL-READY-NO-SUBMIT`
 - Consolidated paper ops snapshot endpoint and dashboard control return `PAPER-OPS-READY`
 - Read-only Alpaca paper clock endpoint returns market open/close state
+- Read-only paper session-plan endpoint and dashboard control return `MARKET-CLOSED-WAIT` or `MARKET-OPEN-RUN-WATCH`
 - Paper watch mode skips strategy evaluation when the market is closed by default
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
 - Paper market session planner returns `MARKET-CLOSED-WAIT` until next paper market open
@@ -82,6 +83,7 @@ curl -s http://127.0.0.1:8001/dashboard/summary -H "X-API-Key: $(grep '^AI_API_K
 curl -s "http://127.0.0.1:8001/broker/paper/account" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/clock" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_market_session_plan.py
+curl -s "http://127.0.0.1:8001/broker/paper/session_plan" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/orders?status=open&limit=20" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&use_paper_account=true" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1

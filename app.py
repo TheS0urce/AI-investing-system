@@ -34,6 +34,7 @@ from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioStat
 from src.ai_investing.strategy import SimpleMomentumStrategy
 from src.ai_investing.system import InvestingSystem
 from scripts.paper_go_no_go_checklist import checklist_items
+from scripts.paper_market_session_plan import session_plan_from_clock
 from scripts.paper_strategy_scenarios import build_scenario_report
 from scripts.strategy_quality_report import build_strategy_quality_report
 
@@ -499,6 +500,21 @@ def paper_go_no_go_payload() -> dict[str, object]:
     }
 
 
+def paper_market_session_plan_payload() -> dict[str, object]:
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+    try:
+        clock = fetch_paper_clock(alpaca_paper_credentials())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "source": "alpaca_paper_clock",
+        "mode": "read_only",
+        **session_plan_from_clock(serialize_paper_clock(clock)),
+    }
+
+
 def run_paper_strategy_preview(
     *,
     symbol: str,
@@ -669,6 +685,13 @@ def broker_paper_clock(request: Request, x_api_key: str | None = Header(default=
         "mode": "read_only",
         "clock": serialize_paper_clock(clock),
     }
+
+
+@app.get("/broker/paper/session_plan")
+@limiter.limit("20/minute")
+def broker_paper_session_plan(request: Request, x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return paper_market_session_plan_payload()
 
 
 @app.get("/broker/paper/strategy_preview")
