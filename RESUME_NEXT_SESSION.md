@@ -14,7 +14,7 @@ Trigger phrase: **Let's continue**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 71 tests
+- Final validation: `./scripts/check.sh` passed with 78 tests
 
 ## Completed Today
 
@@ -45,6 +45,11 @@ Trigger phrase: **Let's continue**
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
 - Paper market session planner returns `MARKET-CLOSED-WAIT` until next paper market open
 - Strategy quality diagnostic returns `STRATEGY-QUALITY-OK` after expected-edge model improvement
+- Strategy quality API endpoint and dashboard control return `STRATEGY-QUALITY-OK`
+- Synthetic paper strategy scenario API endpoint and dashboard control return `PAPER-STRATEGY-SCENARIOS-READY`
+- Paper GO/NO-GO checklist script, API endpoint, and dashboard control are available
+- Paper strategy scenario report generated `PAPER_STRATEGY_SCENARIO_REPORT_2026-05-24.md`
+- Paper GO/NO-GO checklist generated `PAPER_GO_NO_GO_CHECKLIST_2026-05-24.md`
 - Daily Ops includes market clock fields and NO-GO reasons
 - Mac launcher verification returns `LAUNCHERS-READY`
 - LaunchAgent restarted with paper market-data and paper clock endpoints live
@@ -62,6 +67,8 @@ Trigger phrase: **Let's continue**
 - `PAPER_WATCH_REPORT_2026-05-23.md`
 - `PAPER_OPS_EVIDENCE_2026-05-24.md`
 - `PAPER_WATCH_REPORT_2026-05-24.md`
+- `PAPER_STRATEGY_SCENARIO_REPORT_2026-05-24.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-05-24.md`
 
 ## First Commands Tomorrow
 
@@ -84,11 +91,15 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" -H "X-API-K
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_readiness_report.py
 .venv/bin/python scripts/strategy_quality_report.py
-.venv/bin/python scripts/paper_strategy_scenarios.py
+.venv/bin/python scripts/paper_strategy_scenarios.py --write-report
+.venv/bin/python scripts/paper_go_no_go_checklist.py
 .venv/bin/python scripts/paper_daily_ops.py
 .venv/bin/python scripts/paper_ops_snapshot.py
 .venv/bin/python scripts/paper_ops_evidence.py
 curl -s "http://127.0.0.1:8001/broker/paper/readiness?watch_limit=500" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/strategy_quality" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/strategy_scenarios" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/go_no_go_checklist" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/ops_snapshot?watch_limit=500" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_order_drill.py
 curl -s -X POST http://127.0.0.1:8001/broker/paper/order_drill -H "Content-Type: application/json" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)" -d '{"symbol":"QQQ","side":"BUY","quantity":0.001,"limit_price":1.00}'

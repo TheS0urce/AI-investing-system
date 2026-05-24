@@ -306,13 +306,21 @@ Generate the paper-stage readiness report:
 ```bash
 .venv/bin/python scripts/paper_readiness_report.py
 .venv/bin/python scripts/strategy_quality_report.py
-.venv/bin/python scripts/paper_strategy_scenarios.py
+.venv/bin/python scripts/paper_strategy_scenarios.py --write-report
+.venv/bin/python scripts/paper_go_no_go_checklist.py
 curl -s "http://127.0.0.1:8001/broker/paper/readiness?watch_limit=500" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/strategy_quality" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/strategy_scenarios" \
+  -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/go_no_go_checklist" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
 Expected current-stage result: `PAPER-GO`. This is not live-trading approval.
 Expected strategy-quality result: `STRATEGY-QUALITY-OK`. This only means the model can clear the existing edge gate under strong-signal conditions; it is not live-trading approval.
+The scenario and GO/NO-GO helpers also write dated local evidence files. The dashboard exposes read-only buttons for Paper Readiness, Strategy Quality, Strategy Scenarios, GO/NO-GO Checklist, and Paper Ops Snapshot.
 
 Generate the consolidated read-only paper operations snapshot:
 ```bash
