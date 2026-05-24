@@ -50,6 +50,7 @@ Trigger phrase: **Let's continue**
 - Session plan and preflight include operator-local market times, defaulting to `Pacific/Auckland`
 - Session plan and preflight include `time_until_next_open` / `time_until_next_close` countdown fields
 - Paper next-action helper returns compact `WAIT_FOR_MARKET_OPEN`, `RUN_GUARDED_WATCH`, or `FIX_PREFLIGHT_REASONS` guidance
+- Paper next-action API endpoint and dashboard control are available
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
 - Paper market session planner returns `MARKET-CLOSED-WAIT` until next paper market open
 - Strategy quality diagnostic returns `STRATEGY-QUALITY-OK` after expected-edge model improvement
@@ -97,6 +98,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex
 .venv/bin/python scripts/paper_market_open_preflight.py
 .venv/bin/python scripts/paper_next_action.py
 curl -s "http://127.0.0.1:8001/broker/paper/market_open_preflight" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+curl -s "http://127.0.0.1:8001/broker/paper/next_action" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
 curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"

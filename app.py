@@ -36,6 +36,7 @@ from src.ai_investing.system import InvestingSystem
 from scripts.paper_go_no_go_checklist import checklist_items
 from scripts.paper_market_open_preflight import summarize_preflight
 from scripts.paper_market_session_plan import session_plan_from_clock
+from scripts.paper_next_action import action_from_preflight
 from scripts.paper_strategy_scenarios import build_scenario_report
 from scripts.strategy_quality_report import build_strategy_quality_report
 
@@ -540,6 +541,10 @@ def paper_market_open_preflight_payload(watch_limit: int = 500) -> dict[str, obj
     )
 
 
+def paper_next_action_payload(watch_limit: int = 500) -> dict[str, object]:
+    return action_from_preflight(paper_market_open_preflight_payload(watch_limit=watch_limit))
+
+
 def run_paper_strategy_preview(
     *,
     symbol: str,
@@ -728,6 +733,17 @@ def broker_paper_market_open_preflight(
 ):
     require_api_key(x_api_key)
     return paper_market_open_preflight_payload(watch_limit=watch_limit)
+
+
+@app.get("/broker/paper/next_action")
+@limiter.limit("20/minute")
+def broker_paper_next_action(
+    request: Request,
+    watch_limit: int = 500,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    return paper_next_action_payload(watch_limit=watch_limit)
 
 
 @app.get("/broker/paper/strategy_preview")

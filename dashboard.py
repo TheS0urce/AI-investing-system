@@ -320,6 +320,18 @@ with market_right:
             st.json(response.json())
         except Exception as e:
             st.error(f"Paper market-open preflight error: {e}")
+    if st.button("Show Next Paper Action"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/next_action",
+                headers=headers,
+                params={"watch_limit": 500},
+                timeout=20,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Paper next-action error: {e}")
     if st.button("Run Paper Strategy Preview"):
         try:
             response = requests.get(

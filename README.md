@@ -73,6 +73,7 @@ Useful local commands:
 ./scripts/check.sh
 .venv/bin/python scripts/verify_macos_apps.py
 .venv/bin/python scripts/paper_market_open_preflight.py
+.venv/bin/python scripts/paper_next_action.py
 .venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
 ```
 
@@ -102,7 +103,7 @@ The system is composed of:
   - `GET /health`
   - `POST /simulate_tick` (API key protected)
   - `GET /dashboard/summary` (API key protected)
-  - Alpaca paper-only account, clock, readiness, strategy preview, watch, and preflight endpoints
+  - Alpaca paper-only account, clock, readiness, strategy preview, watch, preflight, and next-action endpoints
 - **Core orchestration (`src/ai_investing/system.py`)**  
   Pipeline: market checks → signal generation → order proposal → cost/edge gate → portfolio/risk gate → manual review or approval.
 - **Safety/risk engine (`src/ai_investing/safety.py`)**  

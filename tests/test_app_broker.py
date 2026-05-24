@@ -788,6 +788,46 @@ def test_market_open_preflight_rejects_invalid_watch_limit(monkeypatch):
     assert response.json()["detail"] == "watch_limit_must_be_between_1_and_5000"
 
 
+def test_paper_next_action_waits_when_market_closed(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    monkeypatch.setenv("ALPACA_PAPER_API_KEY", "paper-key")
+    monkeypatch.setenv("ALPACA_PAPER_SECRET_KEY", "paper-secret")
+    monkeypatch.setenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets")
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=False))
+    monkeypatch.setattr(app, "fetch_paper_orders", lambda credentials, status, limit: [])
+    monkeypatch.setattr(app, "WATCH_HISTORY_PATH", tmp_path / "paper_watch_history.jsonl")
+    app.append_watch_event({"symbol": "QQQ", "feed": "iex", "auto_submit_enabled": False})
+
+    response = client(monkeypatch).get(
+        "/broker/paper/next_action",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "PAPER-NEXT-ACTION-READY"
+    assert payload["action"] == "WAIT_FOR_MARKET_OPEN"
+    assert payload["preflight_status"] == "PAPER-MARKET-OPEN-NO-GO"
+    assert payload["auto_submit_enabled"] is False
+    assert payload["live_trading_approved"] is False
+
+
+def test_paper_next_action_rejects_invalid_watch_limit(monkeypatch):
+    response = client(monkeypatch).get(
+        "/broker/paper/next_action",
+        headers={"X-API-Key": "test-key"},
+        params={"watch_limit": 0},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "watch_limit_must_be_between_1_and_5000"
+
+
 def test_paper_order_drill_returns_no_submit_payload(monkeypatch, tmp_path):
     app.config.broker.provider = "alpaca"
     app.config.broker.mode = "paper"
