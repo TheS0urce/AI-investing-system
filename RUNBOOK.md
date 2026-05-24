@@ -274,6 +274,7 @@ It also includes countdown fields such as `time_until_next_open` and `time_until
 Run the paper market-open preflight before any market-hours watch session:
 ```bash
 .venv/bin/python scripts/paper_market_open_preflight.py
+.venv/bin/python scripts/paper_next_action.py
 curl -s "http://127.0.0.1:8001/broker/paper/market_open_preflight" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
@@ -283,6 +284,7 @@ Expected closed-market result: `PAPER-MARKET-OPEN-NO-GO` with `session_plan=MARK
 The preflight mirrors the local operator time fields so the next actionable window is clear without manual timezone conversion.
 It also mirrors the countdown fields to make closed-market NO-GO results actionable.
 The dashboard exposes this as `Run Market-Open Preflight`.
+Use `paper_next_action.py` for a compact operator instruction such as `WAIT_FOR_MARKET_OPEN`, `RUN_GUARDED_WATCH`, or `FIX_PREFLIGHT_REASONS`.
 
 Fetch a read-only paper market snapshot:
 ```bash
