@@ -84,6 +84,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" -H "X-API-K
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_readiness_report.py
 .venv/bin/python scripts/strategy_quality_report.py
+.venv/bin/python scripts/paper_strategy_scenarios.py
 .venv/bin/python scripts/paper_daily_ops.py
 .venv/bin/python scripts/paper_ops_snapshot.py
 .venv/bin/python scripts/paper_ops_evidence.py
