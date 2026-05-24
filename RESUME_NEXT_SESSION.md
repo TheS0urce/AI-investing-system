@@ -51,6 +51,7 @@ Trigger phrase: **Let's continue**
 - Session plan and preflight include `time_until_next_open` / `time_until_next_close` countdown fields
 - Paper next-action helper returns compact `WAIT_FOR_MARKET_OPEN`, `RUN_GUARDED_WATCH`, or `FIX_PREFLIGHT_REASONS` guidance
 - Paper next-action API endpoint and dashboard control are available
+- `AI Investing Next Action.app` is installed in `~/Applications/AI Investment`
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
 - Paper market session planner returns `MARKET-CLOSED-WAIT` until next paper market open
 - Strategy quality diagnostic returns `STRATEGY-QUALITY-OK` after expected-edge model improvement
@@ -61,7 +62,7 @@ Trigger phrase: **Let's continue**
 - Paper GO/NO-GO checklist generated `PAPER_GO_NO_GO_CHECKLIST_2026-05-24.md`
 - Daily Ops includes market clock fields and NO-GO reasons
 - Mac launcher verification returns `LAUNCHERS-READY`
-- Mac launcher verification expects 6 apps including Market Preflight
+- Mac launcher verification expects 7 apps including Market Preflight and Next Action
 - LaunchAgent restarted with paper market-data and paper clock endpoints live
 
 ## Evidence Files

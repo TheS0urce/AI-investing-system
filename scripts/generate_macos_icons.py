@@ -36,6 +36,11 @@ SPECS = {
         "symbol": "gate",
         "accent": "#f8ff9c",
     },
+    "AI Investing Next Action": {
+        "bg": ("#33224a", "#37c7a1"),
+        "symbol": "compass",
+        "accent": "#ffe36e",
+    },
     "AI Investing Stop API": {
         "bg": ("#5f1515", "#ff4f4f"),
         "symbol": "stop",
@@ -127,6 +132,17 @@ def draw_gate(draw: ImageDraw.ImageDraw, accent: str) -> None:
     draw.line([(570, 488), (690, 488)], fill=(255, 255, 255, 170), width=20)
 
 
+def draw_compass(draw: ImageDraw.ImageDraw, accent: str) -> None:
+    draw.rounded_rectangle((205, 220, 820, 760), radius=74, fill=(0, 0, 0, 72), outline=(255, 255, 255, 88), width=16)
+    draw.ellipse((285, 275, 740, 730), outline=(255, 255, 255, 145), width=28)
+    draw.ellipse((455, 445, 570, 560), fill=(255, 255, 255, 70), outline=(255, 255, 255, 180), width=12)
+    draw.polygon([(525, 330), (590, 510), (500, 485), (435, 665), (372, 485), (462, 510)], fill=accent)
+    draw.line([(512, 300), (512, 355)], fill=(255, 255, 255, 170), width=22)
+    draw.line([(512, 650), (512, 705)], fill=(255, 255, 255, 170), width=22)
+    draw.line([(315, 502), (370, 502)], fill=(255, 255, 255, 170), width=22)
+    draw.line([(655, 502), (710, 502)], fill=(255, 255, 255, 170), width=22)
+
+
 def render_icon(name: str, spec: dict[str, object]) -> Image.Image:
     size = 1024
     img = gradient(size, *spec["bg"]).convert("RGBA")
@@ -149,6 +165,8 @@ def render_icon(name: str, spec: dict[str, object]) -> Image.Image:
         draw_check(draw, accent)
     elif symbol == "gate":
         draw_gate(draw, accent)
+    elif symbol == "compass":
+        draw_compass(draw, accent)
     elif symbol == "stop":
         draw_stop(draw, accent)
 

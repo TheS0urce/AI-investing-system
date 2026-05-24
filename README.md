@@ -83,7 +83,7 @@ Clickable Mac launchers are installed in:
 ~/Applications/AI Investment
 ```
 
-The current launcher set includes Start API, Health, Dashboard, Daily Ops, Market Preflight, and Stop API.
+The current launcher set includes Start API, Health, Dashboard, Daily Ops, Market Preflight, Next Action, and Stop API.
 
 ## Important
 

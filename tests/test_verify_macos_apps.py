@@ -11,6 +11,11 @@ assert SPEC.loader is not None
 SPEC.loader.exec_module(verify_macos_apps)
 
 
+def test_expected_launchers_include_next_action():
+    assert "AI Investing Next Action.app" in verify_macos_apps.EXPECTED_APPS
+    assert len(verify_macos_apps.EXPECTED_APPS) == 7
+
+
 def test_verify_launchers_reports_ready_when_all_apps_exist(tmp_path):
     for app_name in verify_macos_apps.EXPECTED_APPS:
         contents = tmp_path / app_name / "Contents"
