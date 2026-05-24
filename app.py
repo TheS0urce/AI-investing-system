@@ -34,6 +34,7 @@ from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioStat
 from src.ai_investing.strategy import SimpleMomentumStrategy
 from src.ai_investing.system import InvestingSystem
 from scripts.paper_go_no_go_checklist import checklist_items
+from scripts.paper_market_open_preflight import summarize_preflight
 from scripts.paper_market_session_plan import session_plan_from_clock
 from scripts.paper_strategy_scenarios import build_scenario_report
 from scripts.strategy_quality_report import build_strategy_quality_report
@@ -518,6 +519,27 @@ def paper_market_session_plan_payload() -> dict[str, object]:
     }
 
 
+def paper_market_open_preflight_payload(watch_limit: int = 500) -> dict[str, object]:
+    if watch_limit <= 0 or watch_limit > 5_000:
+        raise HTTPException(status_code=400, detail="watch_limit_must_be_between_1_and_5000")
+
+    broker = broker_readiness(config.broker)
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+
+    try:
+        open_orders = fetch_paper_orders(alpaca_paper_credentials(), status="open", limit=20)
+    except (RuntimeError, ValueError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return summarize_preflight(
+        session_plan=paper_market_session_plan_payload(),
+        readiness=paper_readiness_payload(watch_limit=watch_limit),
+        strategy_quality=asdict(build_strategy_quality_report(config)),
+        open_orders=[serialize_paper_order_result(order) for order in open_orders],
+    )
+
+
 def run_paper_strategy_preview(
     *,
     symbol: str,
@@ -695,6 +717,17 @@ def broker_paper_clock(request: Request, x_api_key: str | None = Header(default=
 def broker_paper_session_plan(request: Request, x_api_key: str | None = Header(default=None)):
     require_api_key(x_api_key)
     return paper_market_session_plan_payload()
+
+
+@app.get("/broker/paper/market_open_preflight")
+@limiter.limit("20/minute")
+def broker_paper_market_open_preflight(
+    request: Request,
+    watch_limit: int = 500,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    return paper_market_open_preflight_payload(watch_limit=watch_limit)
 
 
 @app.get("/broker/paper/strategy_preview")

@@ -45,6 +45,7 @@ Trigger phrase: **Let's continue**
 - Paper watch mode skips strategy evaluation when the market is closed by default
 - Guarded market-open paper watch launcher refuses to run while market is closed
 - Paper market-open preflight combines session plan, readiness, strategy quality, and open-order checks
+- Paper market-open preflight API endpoint and dashboard control are available
 - Session plan and preflight include operator-local market times, defaulting to `Pacific/Auckland`
 - Session plan and preflight include `time_until_next_open` / `time_until_next_close` countdown fields
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
@@ -91,6 +92,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/session_plan" -H "X-API-Key: $(grep 
 curl -s "http://127.0.0.1:8001/broker/paper/orders?status=open&limit=20" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&use_paper_account=true" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_market_open_preflight.py
+curl -s "http://127.0.0.1:8001/broker/paper/market_open_preflight" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
 curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"

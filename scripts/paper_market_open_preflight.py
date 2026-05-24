@@ -6,7 +6,10 @@ import os
 import urllib.error
 from typing import Any
 
-from paper_ops_snapshot import ROOT, fetch_json, load_dotenv
+try:
+    from scripts.paper_ops_snapshot import ROOT, fetch_json, load_dotenv
+except ModuleNotFoundError:
+    from paper_ops_snapshot import ROOT, fetch_json, load_dotenv
 
 
 def failed_readiness_checks(readiness: dict[str, Any]) -> list[dict[str, Any]]:
