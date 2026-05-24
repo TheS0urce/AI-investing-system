@@ -18,7 +18,9 @@ This repository contains a **self-built AI investing system** designed for retai
 - `src/ai_investing/strategy.py`: Signal generation interface and sample model strategy.
 - `src/ai_investing/execution.py`: Execution planner with slippage/fee-aware sizing.
 - `src/ai_investing/system.py`: End-to-end orchestrator with audit logs and fail-closed behavior.
+- `src/ai_investing/alpaca.py`: Alpaca paper-only adapter and read-only market/account helpers.
 - `examples/run_demo.py`: Demo flow with simulated market data and dry-run execution.
+- `dashboard.py`: Local Streamlit operator dashboard.
 
 ## Safety features implemented
 
@@ -54,6 +56,34 @@ pip install -r requirements.txt
 python examples/run_demo.py
 ```
 
+## Current Paper-Trading Stage
+
+The current deployment stage is **Alpaca paper trading only**:
+
+- Broker mode: `paper`
+- Live routing: disabled
+- Autonomous execution: disabled
+- Manual approval: required
+- Paper order submit/cancel: guarded by exact confirmation phrases
+- Market-open watch mode: read-only by default
+
+Useful local commands:
+
+```bash
+./scripts/check.sh
+.venv/bin/python scripts/verify_macos_apps.py
+.venv/bin/python scripts/paper_market_open_preflight.py
+.venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
+```
+
+Clickable Mac launchers are installed in:
+
+```text
+~/Applications/AI Investment
+```
+
+The current launcher set includes Start API, Health, Dashboard, Daily Ops, Market Preflight, and Stop API.
+
 ## Important
 
 This code is educational infrastructure and not investment advice. Validate legal, tax, and regulatory obligations before live use.
@@ -72,6 +102,7 @@ The system is composed of:
   - `GET /health`
   - `POST /simulate_tick` (API key protected)
   - `GET /dashboard/summary` (API key protected)
+  - Alpaca paper-only account, clock, readiness, strategy preview, watch, and preflight endpoints
 - **Core orchestration (`src/ai_investing/system.py`)**  
   Pipeline: market checks → signal generation → order proposal → cost/edge gate → portfolio/risk gate → manual review or approval.
 - **Safety/risk engine (`src/ai_investing/safety.py`)**  
@@ -151,5 +182,6 @@ The system is composed of:
 
 ### Current Scope & Limitations
 - Educational/safety infrastructure, not investment advice.
-- Not a complete OMS/EMS or broker-execution stack.
+- Paper-only broker integration exists for staged validation; live routing remains disabled.
+- Not a complete OMS/EMS or live broker-execution stack.
 - Requires explicit human governance and staged rollout before any live capital deployment.
