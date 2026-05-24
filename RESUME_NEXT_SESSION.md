@@ -14,7 +14,7 @@ Trigger phrase: **Let's continue**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 65 tests
+- Final validation: `./scripts/check.sh` passed with 67 tests
 
 ## Completed Today
 
@@ -43,6 +43,7 @@ Trigger phrase: **Let's continue**
 - Read-only Alpaca paper clock endpoint returns market open/close state
 - Paper watch mode skips strategy evaluation when the market is closed by default
 - Paper watch report helper generated `PAPER_WATCH_REPORT_2026-05-23.md`
+- Paper market session planner returns `MARKET-CLOSED-WAIT` until next paper market open
 - Daily Ops includes market clock fields and NO-GO reasons
 - Mac launcher verification returns `LAUNCHERS-READY`
 - LaunchAgent restarted with paper market-data and paper clock endpoints live
@@ -58,6 +59,8 @@ Trigger phrase: **Let's continue**
 - `PAPER_DRY_RUN_DRILL_2026-05-23.md`
 - `PAPER_OPS_EVIDENCE_2026-05-23.md`
 - `PAPER_WATCH_REPORT_2026-05-23.md`
+- `PAPER_OPS_EVIDENCE_2026-05-24.md`
+- `PAPER_WATCH_REPORT_2026-05-24.md`
 
 ## First Commands Tomorrow
 
@@ -70,6 +73,7 @@ git status --short --branch
 curl -s http://127.0.0.1:8001/dashboard/summary -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/account" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/clock" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
+.venv/bin/python scripts/paper_market_session_plan.py
 curl -s "http://127.0.0.1:8001/broker/paper/orders?status=open&limit=20" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex&use_paper_account=true" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
