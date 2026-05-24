@@ -289,11 +289,13 @@ curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex
 Record one read-only paper watch tick and inspect recent history:
 ```bash
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
+.venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
 curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" \
   -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 ```
 
 Watch mode records what the strategy would have done during market hours. If the Alpaca paper clock says the market is closed, watch mode records `SKIPPED_MARKET_CLOSED` by default instead of evaluating the strategy. Use `--allow-closed-market` only for explicit diagnostics.
+Prefer `run_market_open_paper_watch.py` for real paper sessions; it checks the session plan first and exits with `PAPER-WATCH-NO-GO` when the paper market is closed.
 Watch mode does not submit orders.
 History is persisted locally to `logs/paper_watch_history.jsonl`, which is gitignored runtime data.
 Export watch history for review:
