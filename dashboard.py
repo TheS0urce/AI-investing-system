@@ -158,6 +158,48 @@ with broker_right:
         except Exception as e:
             st.error(f"Paper drill error: {e}")
 
+with broker_left:
+    st.subheader("Strategy Quality")
+    if st.button("Run Strategy Quality"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/strategy_quality",
+                headers=headers,
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Strategy quality error: {e}")
+
+with broker_left:
+    st.subheader("Strategy Scenarios")
+    if st.button("Run Strategy Scenarios"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/strategy_scenarios",
+                headers=headers,
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"Strategy scenario error: {e}")
+
+with broker_right:
+    st.subheader("GO/NO-GO Checklist")
+    if st.button("Show GO/NO-GO Checklist"):
+        try:
+            response = requests.get(
+                f"{API_BASE}/broker/paper/go_no_go_checklist",
+                headers=headers,
+                timeout=10,
+            )
+            response.raise_for_status()
+            st.json(response.json())
+        except Exception as e:
+            st.error(f"GO/NO-GO checklist error: {e}")
+
 with broker_right:
     st.subheader("Recent Paper Orders")
     if st.button("Refresh Paper Orders"):

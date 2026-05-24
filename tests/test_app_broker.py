@@ -239,6 +239,40 @@ def test_paper_clock_endpoint_returns_read_only_market_clock(monkeypatch):
     assert called == {"base_url": "https://paper-api.alpaca.markets"}
 
 
+def test_strategy_quality_endpoint_is_read_only(monkeypatch):
+    response = client(monkeypatch).get("/broker/paper/strategy_quality", headers={"X-API-Key": "test-key"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "STRATEGY-QUALITY-OK"
+    assert payload["conclusion"] == "current_strategy_can_pass_net_edge_gate"
+
+
+def test_strategy_scenarios_endpoint_is_synthetic_read_only(monkeypatch):
+    response = client(monkeypatch).get("/broker/paper/strategy_scenarios", headers={"X-API-Key": "test-key"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "PAPER-STRATEGY-SCENARIOS-READY"
+    assert payload["mode"] == "synthetic_read_only"
+    assert payload["auto_submit_enabled"] is False
+    assert payload["live_trading_approved"] is False
+    scenarios = {item["name"]: item for item in payload["scenarios"]}
+    assert scenarios["strong_low_volatility_reaches_manual_review"]["audit_event"] == "manual_review_required"
+
+
+def test_go_no_go_checklist_endpoint_returns_hard_guards(monkeypatch):
+    response = client(monkeypatch).get("/broker/paper/go_no_go_checklist", headers={"X-API-Key": "test-key"})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "PAPER-GO-NO-GO-CHECKLIST-READY"
+    assert "live_routing_disabled" in payload["hard_guards"]
+    assert "operator_approval_required_for_paper_submit" in payload["hard_guards"]
+    gates = {item["gate"]: item for item in payload["items"]}
+    assert gates["Market session is open"]["go_condition"] == "Status is MARKET-OPEN-RUN-WATCH."
+
+
 def test_strategy_preview_does_not_auto_submit(monkeypatch):
     app.config.broker.provider = "alpaca"
     app.config.broker.mode = "paper"

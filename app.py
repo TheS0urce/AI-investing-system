@@ -2,6 +2,7 @@ import os
 import json
 import csv
 import io
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -32,6 +33,9 @@ from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioState, Side
 from src.ai_investing.strategy import SimpleMomentumStrategy
 from src.ai_investing.system import InvestingSystem
+from scripts.paper_go_no_go_checklist import checklist_items
+from scripts.paper_strategy_scenarios import build_scenario_report
+from scripts.strategy_quality_report import build_strategy_quality_report
 
 load_dotenv()
 
@@ -481,6 +485,20 @@ def paper_ops_snapshot_payload(watch_limit: int = 500) -> dict[str, object]:
     }
 
 
+def paper_go_no_go_payload() -> dict[str, object]:
+    return {
+        "status": "PAPER-GO-NO-GO-CHECKLIST-READY",
+        "hard_guards": [
+            "paper_mode_only",
+            "live_routing_disabled",
+            "autonomous_execution_disabled",
+            "manual_approval_required",
+            "operator_approval_required_for_paper_submit",
+        ],
+        "items": checklist_items(),
+    }
+
+
 def run_paper_strategy_preview(
     *,
     symbol: str,
@@ -686,6 +704,20 @@ def broker_paper_strategy_preview(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 
+@app.get("/broker/paper/strategy_quality")
+def broker_paper_strategy_quality(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return asdict(build_strategy_quality_report(config))
+
+
+@app.get("/broker/paper/strategy_scenarios")
+def broker_paper_strategy_scenarios(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    report = build_scenario_report()
+    report["mode"] = "synthetic_read_only"
+    return report
+
+
 @app.get("/broker/status")
 def broker_status(x_api_key: str | None = Header(default=None)):
     require_api_key(x_api_key)
@@ -741,6 +773,12 @@ def broker_paper_ops_snapshot(
     if watch_limit <= 0 or watch_limit > 5_000:
         raise HTTPException(status_code=400, detail="watch_limit_must_be_between_1_and_5000")
     return paper_ops_snapshot_payload(watch_limit=watch_limit)
+
+
+@app.get("/broker/paper/go_no_go_checklist")
+def broker_paper_go_no_go_checklist(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return paper_go_no_go_payload()
 
 
 @app.post("/broker/paper/submit_order")
