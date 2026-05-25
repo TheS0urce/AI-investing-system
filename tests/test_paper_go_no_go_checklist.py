@@ -30,3 +30,4 @@ def test_checklist_includes_market_and_evidence_gates():
     assert "paper_daily_ops.py" in items["Daily ops is green"]["command"]
     assert "paper_strategy_scenarios.py --write-report" in items["Scenario evidence is current"]["command"]
     assert "run_market_open_paper_watch.py" in items["Read-only watch evidence captured"]["command"]
+    assert "Full PAPER-MARKET-OPEN-GO preflight passes" in items["Read-only watch evidence captured"]["go_condition"]

@@ -59,7 +59,7 @@ def checklist_items() -> list[dict[str, str]]:
         {
             "gate": "Read-only watch evidence captured",
             "command": ".venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30",
-            "go_condition": "Market-open guard passes, watch completes without auto-submit, and history is written.",
+            "go_condition": "Full PAPER-MARKET-OPEN-GO preflight passes, watch completes without auto-submit, and history is written.",
         },
         {
             "gate": "Watch report written",

@@ -70,6 +70,9 @@ Trigger phrase: **Let's continue**
 - Paper next-action currently reports `WAIT_FOR_MARKET_OPEN`; next paper market open is 2026-05-27 01:30 Pacific/Auckland
 - Market-open paper watch launcher now requires full `PAPER-MARKET-OPEN-GO` preflight before any watch tick runs
 - Closed-market launcher probe returned `PAPER-WATCH-NO-GO` with `market_open_preflight_failed` and `session_plan=MARKET-CLOSED-WAIT`
+- Pre-open daily ops generated `PAPER-DAILY-GO` with `PAPER-GO`, live routing disabled, autonomous execution disabled, and open paper orders at 0
+- Paper GO/NO-GO checklist refreshed so the watch gate requires full `PAPER-MARKET-OPEN-GO` preflight
+- Paper watch report generated `PAPER_WATCH_REPORT_2026-05-25.md`
 
 ## Evidence Files
 
@@ -87,6 +90,9 @@ Trigger phrase: **Let's continue**
 - `PAPER_STRATEGY_SCENARIO_REPORT_2026-05-24.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-24.md`
 - `SCALING_POLICY_REPORT_2026-05-25.md`
+- `PAPER_OPS_EVIDENCE_2026-05-25.md`
+- `PAPER_WATCH_REPORT_2026-05-25.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-05-25.md`
 
 ## First Commands Tomorrow
 
