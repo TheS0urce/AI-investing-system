@@ -75,6 +75,9 @@ Operator resume command: **Lets continue.**
 - Pre-open daily ops generated `PAPER-DAILY-GO` with `PAPER-GO`, live routing disabled, autonomous execution disabled, and open paper orders at 0
 - Paper GO/NO-GO checklist refreshed so the watch gate requires full `PAPER-MARKET-OPEN-GO` preflight
 - Paper watch report generated `PAPER_WATCH_REPORT_2026-05-25.md`
+- Automation `market-open-paper-watch` is ACTIVE for Wednesday 2026-05-27 01:25 Pacific/Auckland; it runs preflight and only runs guarded QQQ/iex paper watch if status is `PAPER-MARKET-OPEN-GO`
+- Automation `market-close-paper-summary` is ACTIVE for Wednesday 2026-05-27 08:10 Pacific/Auckland; it generates post-close evidence and a morning seed message
+- Automation guardrails: no live routing, no autonomous submission, no paper order confirmation phrase, no broker config changes
 
 ## Evidence Files
 
@@ -97,6 +100,8 @@ Operator resume command: **Lets continue.**
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-25.md`
 
 ## First Commands Tomorrow
+
+If unattended automations ran overnight, first inspect their outputs in Codex and then run:
 
 ```bash
 cd "/Users/michielburger/Claude Code/AI-investing-system"
