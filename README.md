@@ -74,6 +74,7 @@ Useful local commands:
 .venv/bin/python scripts/verify_macos_apps.py
 .venv/bin/python scripts/paper_market_open_preflight.py
 .venv/bin/python scripts/paper_next_action.py
+.venv/bin/python scripts/scaling_policy_report.py
 .venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
 ```
 
@@ -113,7 +114,7 @@ The system is composed of:
 - **Strategy module (`src/ai_investing/strategy.py`)**  
   Placeholder volatility-adjusted momentum signal generator.
 - **Scaling policy layer (`src/ai_investing/scaling.py`)**  
-  Deterministic reinvestment and allocation policy helpers.
+  Deterministic reinvestment and allocation policy helpers, with `scripts/scaling_policy_report.py` for operator review.
 
 ### Decision Flow (Per Tick)
 1. Validate market input quality (price, spread, liquidity, volatility).  

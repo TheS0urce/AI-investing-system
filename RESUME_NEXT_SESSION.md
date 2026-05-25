@@ -14,7 +14,7 @@ Trigger phrase: **Let's continue**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 89 tests
+- Final validation: `./scripts/check.sh` passed with 101 tests
 
 ## Completed Today
 
@@ -64,6 +64,10 @@ Trigger phrase: **Let's continue**
 - Mac launcher verification returns `LAUNCHERS-READY`
 - Mac launcher verification expects 7 apps including Market Preflight and Next Action
 - LaunchAgent restarted with paper market-data and paper clock endpoints live
+- Deterministic scaling policy report helper added for 38% reinvestment / 62% reserve and ROI-tier allocation evidence
+- Scaling policy tests added; `src/ai_investing/scaling.py` is directly covered
+- Scaling policy report generated `SCALING_POLICY_REPORT_2026-05-25.md`
+- Paper next-action currently reports `WAIT_FOR_MARKET_OPEN`; next paper market open is 2026-05-27 01:30 Pacific/Auckland
 
 ## Evidence Files
 
@@ -80,6 +84,7 @@ Trigger phrase: **Let's continue**
 - `PAPER_WATCH_REPORT_2026-05-24.md`
 - `PAPER_STRATEGY_SCENARIO_REPORT_2026-05-24.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-24.md`
+- `SCALING_POLICY_REPORT_2026-05-25.md`
 
 ## First Commands Tomorrow
 
@@ -108,6 +113,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" -H "X-API-K
 curl -s "http://127.0.0.1:8001/broker/paper/watch_export?format=csv&limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 .venv/bin/python scripts/paper_readiness_report.py
 .venv/bin/python scripts/strategy_quality_report.py
+.venv/bin/python scripts/scaling_policy_report.py --write-report
 .venv/bin/python scripts/paper_strategy_scenarios.py --write-report
 .venv/bin/python scripts/paper_go_no_go_checklist.py
 .venv/bin/python scripts/paper_daily_ops.py

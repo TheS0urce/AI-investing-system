@@ -224,6 +224,11 @@ Implementation reference in code:
   - ROI-tier allocation targets (accumulation/growth/optimized)
   - strategy-capital capping under max allocation and external addition constraints
 
+Operator evidence command:
+```bash
+.venv/bin/python scripts/scaling_policy_report.py --write-report
+```
+
 Use this module as the policy layer; keep ML components in shadow mode until governance promotion criteria are met.
 
 ## 12.1 Broker integration staging
