@@ -15,9 +15,9 @@ from run_paper_watch import load_dotenv, post_watch_tick
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def fetch_session_plan(api_base: str, api_key: str) -> dict[str, object]:
+def fetch_market_open_preflight(api_base: str, api_key: str) -> dict[str, object]:
     request = urllib.request.Request(
-        f"{api_base.rstrip('/')}/broker/paper/session_plan",
+        f"{api_base.rstrip('/')}/broker/paper/market_open_preflight",
         headers={"X-API-Key": api_key},
     )
     with urllib.request.urlopen(request, timeout=20) as response:
@@ -32,17 +32,17 @@ def run_guarded_watch(
     feed: str,
     interval_seconds: float,
     iterations: int,
-    session_plan: dict[str, object],
+    preflight: dict[str, object],
     post_tick: Callable[[str, str, str, str, bool], dict[str, object]] = post_watch_tick,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
-    if session_plan.get("status") != "MARKET-OPEN-RUN-WATCH":
+    if preflight.get("status") != "PAPER-MARKET-OPEN-GO":
         print(
             json.dumps(
                 {
                     "status": "PAPER-WATCH-NO-GO",
-                    "reason": "market_not_open",
-                    "session_plan": session_plan,
+                    "reason": "market_open_preflight_failed",
+                    "preflight": preflight,
                 }
             )
         )
@@ -57,6 +57,7 @@ def run_guarded_watch(
                 "interval_seconds": interval_seconds,
                 "iterations": iterations,
                 "auto_submit_enabled": False,
+                "preflight_status": preflight.get("status"),
             }
         )
     )
@@ -91,7 +92,7 @@ def main() -> int:
         return 1
 
     try:
-        session_plan = fetch_session_plan(api_base, api_key)
+        preflight = fetch_market_open_preflight(api_base, api_key)
         return run_guarded_watch(
             api_base=api_base,
             api_key=api_key,
@@ -99,7 +100,7 @@ def main() -> int:
             feed=args.feed,
             interval_seconds=args.interval_seconds,
             iterations=args.iterations,
-            session_plan=session_plan,
+            preflight=preflight,
         )
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8")[:500]

@@ -257,6 +257,11 @@ Read-only Alpaca market data check:
 .venv/bin/python scripts/check_alpaca_market_data.py
 ```
 
+The guarded market-open paper watch launcher requires the full market-open preflight to return `PAPER-MARKET-OPEN-GO` before any watch tick runs. It fails closed for a closed market, failed readiness checks, failed strategy quality, or unexpected open paper orders:
+```bash
+.venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
+```
+
 Fetch the read-only Alpaca paper account summary:
 ```bash
 curl -s "http://127.0.0.1:8001/broker/paper/account" \

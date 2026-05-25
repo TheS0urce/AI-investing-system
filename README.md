@@ -66,6 +66,7 @@ The current deployment stage is **Alpaca paper trading only**:
 - Manual approval: required
 - Paper order submit/cancel: guarded by exact confirmation phrases
 - Market-open watch mode: read-only by default
+- Market-open watch launcher requires full `PAPER-MARKET-OPEN-GO` preflight before running
 
 Useful local commands:
 

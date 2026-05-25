@@ -14,7 +14,7 @@ Trigger phrase: **Let's continue**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 101 tests
+- Final validation: `./scripts/check.sh` passed with 102 tests
 
 ## Completed Today
 
@@ -68,6 +68,8 @@ Trigger phrase: **Let's continue**
 - Scaling policy tests added; `src/ai_investing/scaling.py` is directly covered
 - Scaling policy report generated `SCALING_POLICY_REPORT_2026-05-25.md`
 - Paper next-action currently reports `WAIT_FOR_MARKET_OPEN`; next paper market open is 2026-05-27 01:30 Pacific/Auckland
+- Market-open paper watch launcher now requires full `PAPER-MARKET-OPEN-GO` preflight before any watch tick runs
+- Closed-market launcher probe returned `PAPER-WATCH-NO-GO` with `market_open_preflight_failed` and `session_plan=MARKET-CLOSED-WAIT`
 
 ## Evidence Files
 
