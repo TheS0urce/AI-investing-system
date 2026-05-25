@@ -2,6 +2,8 @@
 
 Trigger phrase: **Let's continue**
 
+Operator resume command: **Lets continue.**
+
 ## Current State
 
 - Mac API service: running via LaunchAgent `com.aiinvesting.api`
