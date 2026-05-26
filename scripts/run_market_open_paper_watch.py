@@ -15,6 +15,15 @@ from run_paper_watch import load_dotenv, post_watch_tick
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def market_closed_wait(preflight: dict[str, object]) -> bool:
+    reasons = preflight.get("reasons")
+    return (
+        preflight.get("status") == "PAPER-MARKET-OPEN-NO-GO"
+        and isinstance(reasons, list)
+        and "session_plan=MARKET-CLOSED-WAIT" in reasons
+    )
+
+
 def fetch_market_open_preflight(api_base: str, api_key: str) -> dict[str, object]:
     request = urllib.request.Request(
         f"{api_base.rstrip('/')}/broker/paper/market_open_preflight",
@@ -22,6 +31,27 @@ def fetch_market_open_preflight(api_base: str, api_key: str) -> dict[str, object
     )
     with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def wait_for_market_open_preflight(
+    *,
+    api_base: str,
+    api_key: str,
+    attempts: int,
+    retry_delay_seconds: float,
+    fetch_preflight: Callable[[str, str], dict[str, object]] = fetch_market_open_preflight,
+    sleep: Callable[[float], None] = time.sleep,
+) -> dict[str, object]:
+    latest: dict[str, object] = {}
+    for attempt in range(1, attempts + 1):
+        latest = fetch_preflight(api_base, api_key)
+        print(json.dumps({"status": "PREFLIGHT-CHECK", "attempt": attempt, "preflight": latest}))
+        if latest.get("status") == "PAPER-MARKET-OPEN-GO":
+            return latest
+        if not market_closed_wait(latest) or attempt == attempts:
+            return latest
+        sleep(retry_delay_seconds)
+    return latest
 
 
 def run_guarded_watch(
@@ -75,6 +105,8 @@ def main() -> int:
     parser.add_argument("--feed", default="iex")
     parser.add_argument("--interval-seconds", type=float, default=60.0)
     parser.add_argument("--iterations", type=int, default=30)
+    parser.add_argument("--preflight-attempts", type=int, default=3)
+    parser.add_argument("--preflight-retry-delay-seconds", type=float, default=300.0)
     args = parser.parse_args()
 
     if args.interval_seconds < 5:
@@ -82,6 +114,12 @@ def main() -> int:
         return 1
     if args.iterations <= 0 or args.iterations > 500:
         print(json.dumps({"status": "NO-GO", "reason": "iterations_must_be_between_1_and_500"}))
+        return 1
+    if args.preflight_attempts <= 0 or args.preflight_attempts > 10:
+        print(json.dumps({"status": "NO-GO", "reason": "preflight_attempts_must_be_between_1_and_10"}))
+        return 1
+    if args.preflight_retry_delay_seconds < 0:
+        print(json.dumps({"status": "NO-GO", "reason": "preflight_retry_delay_seconds_must_be_non_negative"}))
         return 1
 
     load_dotenv(ROOT / ".env")
@@ -92,7 +130,12 @@ def main() -> int:
         return 1
 
     try:
-        preflight = fetch_market_open_preflight(api_base, api_key)
+        preflight = wait_for_market_open_preflight(
+            api_base=api_base,
+            api_key=api_key,
+            attempts=args.preflight_attempts,
+            retry_delay_seconds=args.preflight_retry_delay_seconds,
+        )
         return run_guarded_watch(
             api_base=api_base,
             api_key=api_key,

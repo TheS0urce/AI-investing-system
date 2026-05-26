@@ -81,6 +81,7 @@ Operator resume command: **Lets continue.**
 - Wednesday 2026-05-27 automation review: market-open watch fired at 01:25 Pacific/Auckland, before the 01:30 open, so it failed closed with `WAIT_FOR_MARKET_OPEN` / `session_plan=MARKET-CLOSED-WAIT`; no fresh watch evidence was added.
 - Automations rescheduled for next open window: `market-open-paper-watch` Thursday 2026-05-28 01:35 Pacific/Auckland, `market-close-paper-summary` Thursday 2026-05-28 08:10 Pacific/Auckland.
 - Current next action after review: `WAIT_FOR_MARKET_OPEN`; next open is Thursday 2026-05-28 01:30 Pacific/Auckland and next close is Thursday 2026-05-28 08:00 Pacific/Auckland.
+- Guarded market-open watch now retries closed-market preflight up to 3 total attempts with 5 minutes between attempts; it only retries `session_plan=MARKET-CLOSED-WAIT`, and still fails closed for readiness, strategy quality, open-order, or other preflight failures.
 
 ## Evidence Files
 

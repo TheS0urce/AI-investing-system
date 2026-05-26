@@ -39,6 +39,76 @@ def test_guarded_watch_refuses_when_market_closed(capsys):
     assert "market_open_preflight_failed" in output
 
 
+def test_wait_for_market_open_preflight_retries_closed_then_open(capsys):
+    calls = []
+    preflights = [
+        {
+            "status": "PAPER-MARKET-OPEN-NO-GO",
+            "reasons": ["session_plan=MARKET-CLOSED-WAIT"],
+            "market_is_open": False,
+        },
+        {
+            "status": "PAPER-MARKET-OPEN-NO-GO",
+            "reasons": ["session_plan=MARKET-CLOSED-WAIT"],
+            "market_is_open": False,
+        },
+        {"status": "PAPER-MARKET-OPEN-GO", "market_is_open": True},
+    ]
+
+    result = run_market_open_paper_watch.wait_for_market_open_preflight(
+        api_base="http://127.0.0.1:8001",
+        api_key="test-key",
+        attempts=3,
+        retry_delay_seconds=300,
+        fetch_preflight=lambda api_base, api_key: preflights[len(calls)],
+        sleep=lambda seconds: calls.append(seconds),
+    )
+
+    assert result["status"] == "PAPER-MARKET-OPEN-GO"
+    assert calls == [300, 300]
+    assert capsys.readouterr().out.count("PREFLIGHT-CHECK") == 3
+
+
+def test_wait_for_market_open_preflight_stops_after_attempts_when_still_closed():
+    sleeps = []
+
+    result = run_market_open_paper_watch.wait_for_market_open_preflight(
+        api_base="http://127.0.0.1:8001",
+        api_key="test-key",
+        attempts=3,
+        retry_delay_seconds=300,
+        fetch_preflight=lambda api_base, api_key: {
+            "status": "PAPER-MARKET-OPEN-NO-GO",
+            "reasons": ["session_plan=MARKET-CLOSED-WAIT"],
+            "market_is_open": False,
+        },
+        sleep=lambda seconds: sleeps.append(seconds),
+    )
+
+    assert result["status"] == "PAPER-MARKET-OPEN-NO-GO"
+    assert sleeps == [300, 300]
+
+
+def test_wait_for_market_open_preflight_does_not_retry_non_session_failure():
+    sleeps = []
+
+    result = run_market_open_paper_watch.wait_for_market_open_preflight(
+        api_base="http://127.0.0.1:8001",
+        api_key="test-key",
+        attempts=3,
+        retry_delay_seconds=300,
+        fetch_preflight=lambda api_base, api_key: {
+            "status": "PAPER-MARKET-OPEN-NO-GO",
+            "reasons": ["open_orders=1"],
+            "market_is_open": True,
+        },
+        sleep=lambda seconds: sleeps.append(seconds),
+    )
+
+    assert result["status"] == "PAPER-MARKET-OPEN-NO-GO"
+    assert sleeps == []
+
+
 def test_guarded_watch_refuses_when_preflight_has_non_session_reason(capsys):
     called = []
 
