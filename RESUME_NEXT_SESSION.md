@@ -78,6 +78,9 @@ Operator resume command: **Lets continue.**
 - Automation `market-open-paper-watch` is ACTIVE for Wednesday 2026-05-27 01:25 Pacific/Auckland; it runs preflight and only runs guarded QQQ/iex paper watch if status is `PAPER-MARKET-OPEN-GO`
 - Automation `market-close-paper-summary` is ACTIVE for Wednesday 2026-05-27 08:10 Pacific/Auckland; it generates post-close evidence and a morning seed message
 - Automation guardrails: no live routing, no autonomous submission, no paper order confirmation phrase, no broker config changes
+- Wednesday 2026-05-27 automation review: market-open watch fired at 01:25 Pacific/Auckland, before the 01:30 open, so it failed closed with `WAIT_FOR_MARKET_OPEN` / `session_plan=MARKET-CLOSED-WAIT`; no fresh watch evidence was added.
+- Automations rescheduled for next open window: `market-open-paper-watch` Thursday 2026-05-28 01:35 Pacific/Auckland, `market-close-paper-summary` Thursday 2026-05-28 08:10 Pacific/Auckland.
+- Current next action after review: `WAIT_FOR_MARKET_OPEN`; next open is Thursday 2026-05-28 01:30 Pacific/Auckland and next close is Thursday 2026-05-28 08:00 Pacific/Auckland.
 
 ## Evidence Files
 
@@ -98,6 +101,10 @@ Operator resume command: **Lets continue.**
 - `PAPER_OPS_EVIDENCE_2026-05-25.md`
 - `PAPER_WATCH_REPORT_2026-05-25.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-25.md`
+- `PAPER_OPS_EVIDENCE_2026-05-26.md`
+- `PAPER_WATCH_REPORT_2026-05-26.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-05-26.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-27.md`
 
 ## First Commands Tomorrow
 
