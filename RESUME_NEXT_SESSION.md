@@ -87,6 +87,7 @@ Operator resume command: **Lets continue.**
 - Automations rescheduled for next open window: `market-open-paper-watch` Friday 2026-05-29 01:30 Pacific/Auckland, `market-close-paper-summary` Friday 2026-05-29 08:10 Pacific/Auckland.
 - Updated watch automation now runs `run_market_open_paper_watch.py` directly; that script performs full preflight and retry gating internally.
 - Current next action after review: `WAIT_FOR_MARKET_OPEN`; next open is Friday 2026-05-29 01:30 Pacific/Auckland and next close is Friday 2026-05-29 08:00 Pacific/Auckland.
+- Final pre-automation check for Friday 2026-05-29 run: `./scripts/check.sh` passed, automations are ACTIVE, approved-path preflight/watch probes reached local API and failed closed only because the market is currently closed, with readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, open orders `0`, live routing disabled, and autonomous execution disabled.
 
 ## Evidence Files
 
