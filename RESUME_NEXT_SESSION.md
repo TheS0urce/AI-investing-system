@@ -82,6 +82,11 @@ Operator resume command: **Lets continue.**
 - Automations rescheduled for next open window: `market-open-paper-watch` Thursday 2026-05-28 01:35 Pacific/Auckland, `market-close-paper-summary` Thursday 2026-05-28 08:10 Pacific/Auckland.
 - Current next action after review: `WAIT_FOR_MARKET_OPEN`; next open is Thursday 2026-05-28 01:30 Pacific/Auckland and next close is Thursday 2026-05-28 08:00 Pacific/Auckland.
 - Guarded market-open watch now retries closed-market preflight up to 3 total attempts with 5 minutes between attempts; it only retries `session_plan=MARKET-CLOSED-WAIT`, and still fails closed for readiness, strategy quality, open-order, or other preflight failures.
+- Thursday 2026-05-28 automation review: `paper_next_action.py` saw `RUN_GUARDED_WATCH`, but the automation's separate direct `paper_market_open_preflight.py` command hit sandbox network permissions, so no fresh watch evidence was added.
+- Persisted approved execution paths for `paper_market_open_preflight.py` and `run_market_open_paper_watch.py`; one-attempt closed-market probes now run and fail closed with local API evidence instead of sandbox network errors.
+- Automations rescheduled for next open window: `market-open-paper-watch` Friday 2026-05-29 01:30 Pacific/Auckland, `market-close-paper-summary` Friday 2026-05-29 08:10 Pacific/Auckland.
+- Updated watch automation now runs `run_market_open_paper_watch.py` directly; that script performs full preflight and retry gating internally.
+- Current next action after review: `WAIT_FOR_MARKET_OPEN`; next open is Friday 2026-05-29 01:30 Pacific/Auckland and next close is Friday 2026-05-29 08:00 Pacific/Auckland.
 
 ## Evidence Files
 
@@ -106,6 +111,10 @@ Operator resume command: **Lets continue.**
 - `PAPER_WATCH_REPORT_2026-05-26.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-26.md`
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-27.md`
+- `PAPER_OPS_EVIDENCE_2026-05-27.md`
+- `PAPER_WATCH_REPORT_2026-05-27.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-05-27.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-28.md`
 
 ## First Commands Tomorrow
 
