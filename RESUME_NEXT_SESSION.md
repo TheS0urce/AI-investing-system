@@ -92,6 +92,7 @@ Operator resume command: **Lets continue.**
 - Watch evidence after successful run: total ticks `32`, proposals `0`, blocked/no proposal `32`, audit details `insufficient_liquidity=19`, `insufficient_net_edge_after_costs=12`, `market_closed=1`.
 - Post-close evidence confirmed no paper submissions, open paper orders `0`, live routing disabled, autonomous execution disabled, readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, and next action `WAIT_FOR_MARKET_OPEN`.
 - Next technical focus: improve/diagnose paper watch signal quality and market-data/liquidity gates before any live funding or live-routing discussion.
+- Paper watch quality diagnostic added and generated `PAPER_WATCH_QUALITY_REPORT_2026-05-28.md`; it confirms 30 evaluated open-market ticks, 0 proposals, `insufficient_liquidity=19`, `insufficient_net_edge_after_costs=11`, and no live routing/submission.
 
 ## Evidence Files
 
@@ -122,6 +123,7 @@ Operator resume command: **Lets continue.**
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-28.md`
 - `PAPER_OPS_EVIDENCE_2026-05-28.md`
 - `PAPER_WATCH_REPORT_2026-05-28.md`
+- `PAPER_WATCH_QUALITY_REPORT_2026-05-28.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-28.md`
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-29.md`
 
