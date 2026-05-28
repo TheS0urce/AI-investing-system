@@ -88,6 +88,10 @@ Operator resume command: **Lets continue.**
 - Updated watch automation now runs `run_market_open_paper_watch.py` directly; that script performs full preflight and retry gating internally.
 - Current next action after review: `WAIT_FOR_MARKET_OPEN`; next open is Friday 2026-05-29 01:30 Pacific/Auckland and next close is Friday 2026-05-29 08:00 Pacific/Auckland.
 - Final pre-automation check for Friday 2026-05-29 run: `./scripts/check.sh` passed, automations are ACTIVE, approved-path preflight/watch probes reached local API and failed closed only because the market is currently closed, with readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, open orders `0`, live routing disabled, and autonomous execution disabled.
+- Friday 2026-05-29 review: unattended market-open paper watch finally ran during the 2026-05-28 U.S. session and wrote 30 fresh open-market `EVALUATED` ticks.
+- Watch evidence after successful run: total ticks `32`, proposals `0`, blocked/no proposal `32`, audit details `insufficient_liquidity=19`, `insufficient_net_edge_after_costs=12`, `market_closed=1`.
+- Post-close evidence confirmed no paper submissions, open paper orders `0`, live routing disabled, autonomous execution disabled, readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, and next action `WAIT_FOR_MARKET_OPEN`.
+- Next technical focus: improve/diagnose paper watch signal quality and market-data/liquidity gates before any live funding or live-routing discussion.
 
 ## Evidence Files
 
@@ -116,6 +120,10 @@ Operator resume command: **Lets continue.**
 - `PAPER_WATCH_REPORT_2026-05-27.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-27.md`
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-28.md`
+- `PAPER_OPS_EVIDENCE_2026-05-28.md`
+- `PAPER_WATCH_REPORT_2026-05-28.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-05-28.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-29.md`
 
 ## First Commands Tomorrow
 
