@@ -99,6 +99,7 @@ Operator resume command: **Lets continue.**
 - Watch evidence after second successful run: total ticks `62`, evaluated ticks `60`, proposals `0`, audit details `insufficient_liquidity=48`, `insufficient_net_edge_after_costs=13`, `market_closed=1`.
 - Post-close evidence again confirmed no paper submissions, open paper orders `0`, live routing disabled, autonomous execution disabled, readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, and next action `WAIT_FOR_MARKET_OPEN`.
 - Next technical focus remains strategy/market-data quality: two clean paper watch sessions produced no proposals, with the dominant block reason now insufficient liquidity during the opening sample.
+- Liquidity gate diagnostic added and generated `PAPER_LIQUIDITY_GATE_REPORT_2026-05-29.md`; for the 2026-05-29 open, evaluated ticks passing volume thresholds were 24/30 at 25k, 19/30 at 50k, 10/30 at 75k, and 1/30 at the current 100k gate. This is diagnostic only and does not lower risk gates.
 
 ## Evidence Files
 
@@ -135,6 +136,7 @@ Operator resume command: **Lets continue.**
 - `PAPER_OPS_EVIDENCE_2026-05-29.md`
 - `PAPER_WATCH_REPORT_2026-05-29.md`
 - `PAPER_WATCH_QUALITY_REPORT_2026-05-29.md`
+- `PAPER_LIQUIDITY_GATE_REPORT_2026-05-29.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-29.md`
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-30.md`
 
