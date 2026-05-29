@@ -95,6 +95,10 @@ Operator resume command: **Lets continue.**
 - Paper watch quality diagnostic added and generated `PAPER_WATCH_QUALITY_REPORT_2026-05-28.md`; it confirms 30 evaluated open-market ticks, 0 proposals, `insufficient_liquidity=19`, `insufficient_net_edge_after_costs=11`, and no live routing/submission.
 - Tonight's next test is scheduled for the U.S. 2026-05-29 session: `market-open-paper-watch` Saturday 2026-05-30 01:30 Pacific/Auckland and `market-close-paper-summary` Saturday 2026-05-30 08:10 Pacific/Auckland.
 - Final prep for tonight's run: `./scripts/check.sh` passed, readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, open orders `0`, live routing disabled, autonomous execution disabled; approved-path preflight/watch probes reached local API and failed closed only because the market is currently closed.
+- Saturday 2026-05-30 review: second unattended market-open paper watch ran successfully for the U.S. 2026-05-29 open and completed 30/30 iterations.
+- Watch evidence after second successful run: total ticks `62`, evaluated ticks `60`, proposals `0`, audit details `insufficient_liquidity=48`, `insufficient_net_edge_after_costs=13`, `market_closed=1`.
+- Post-close evidence again confirmed no paper submissions, open paper orders `0`, live routing disabled, autonomous execution disabled, readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, and next action `WAIT_FOR_MARKET_OPEN`.
+- Next technical focus remains strategy/market-data quality: two clean paper watch sessions produced no proposals, with the dominant block reason now insufficient liquidity during the opening sample.
 
 ## Evidence Files
 
@@ -128,6 +132,11 @@ Operator resume command: **Lets continue.**
 - `PAPER_WATCH_QUALITY_REPORT_2026-05-28.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-05-28.md`
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-29.md`
+- `PAPER_OPS_EVIDENCE_2026-05-29.md`
+- `PAPER_WATCH_REPORT_2026-05-29.md`
+- `PAPER_WATCH_QUALITY_REPORT_2026-05-29.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-05-29.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-05-30.md`
 
 ## First Commands Tomorrow
 
