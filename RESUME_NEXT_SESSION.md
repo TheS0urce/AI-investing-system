@@ -101,6 +101,10 @@ Operator resume command: **Lets continue.**
 - Next technical focus remains strategy/market-data quality: two clean paper watch sessions produced no proposals, with the dominant block reason now insufficient liquidity during the opening sample.
 - Liquidity gate diagnostic added and generated `PAPER_LIQUIDITY_GATE_REPORT_2026-05-29.md`; for the 2026-05-29 open, evaluated ticks passing volume thresholds were 24/30 at 25k, 19/30 at 50k, 10/30 at 75k, and 1/30 at the current 100k gate. This is diagnostic only and does not lower risk gates.
 - Paper gate scenario replay diagnostic added and generated `PAPER_GATE_SCENARIO_REPORT_2026-05-29.md`; candidate minimum-volume gates at 100k, 75k, 50k, and 25k still produced 0 proposals from 30 evaluated events. Lowering liquidity alone would not have created trades because events that passed market gates failed net-edge checks.
+- Next paper-market test prepared for the Monday 2026-06-01 U.S. session, which is Tuesday 2026-06-02 in Pacific/Auckland: market open 01:30 and market close 08:00.
+- Automation `market-open-paper-watch` is ACTIVE for Tuesday 2026-06-02 01:30 Pacific/Auckland; it runs the guarded QQQ/iex market-open paper watch for 30 iterations with full preflight and closed-market retry handling.
+- Automation `market-close-paper-summary` is ACTIVE for Tuesday 2026-06-02 08:10 Pacific/Auckland; it creates the post-close paper summary and morning seed message.
+- Final pre-test prep confirmed API LaunchAgent running, Alpaca paper account active, readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, open paper orders `0`, live routing disabled, autonomous execution disabled, and closed-market preflight failing closed only because the market is currently closed.
 
 ## Evidence Files
 
