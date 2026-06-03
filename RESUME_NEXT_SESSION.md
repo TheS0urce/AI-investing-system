@@ -114,6 +114,15 @@ Operator resume command: **Lets continue.**
 - Paper gate scenario replay diagnostic generated `PAPER_GATE_SCENARIO_REPORT_2026-06-02.md`; candidate minimum-volume gates at 100k, 75k, 50k, and 25k still produced 0 proposals from 30 evaluated events. At lower thresholds, events that passed liquidity still failed net-edge checks.
 - Automation `market-open-paper-watch` is ACTIVE for Wednesday 2026-06-03 01:30 Pacific/Auckland; it runs the guarded QQQ/iex market-open paper watch for 30 iterations with full preflight and closed-market retry handling.
 - Automation `market-close-paper-summary` is ACTIVE for Wednesday 2026-06-03 08:10 Pacific/Auckland; it creates the post-close paper summary and morning seed message.
+- Wednesday 2026-06-03 review: unattended market-open paper watch ran successfully for the U.S. 2026-06-02 open and completed 30/30 evaluated iterations.
+- Watch evidence after fourth successful run: total ticks `122`, evaluated ticks `120`, proposals `0`, audit details `insufficient_liquidity=107`, `insufficient_net_edge_after_costs=14`, `market_closed=1`.
+- Session-scoped quality report for the latest open confirmed `29` liquidity blocks, `1` net-edge block, `0` proposals, `volume_max=581718`, and no live routing or submission.
+- Post-close evidence confirmed no paper submissions, open paper orders `0`, live routing disabled, autonomous execution disabled, readiness `PAPER-GO`, strategy quality `STRATEGY-QUALITY-OK`, and next action `WAIT_FOR_MARKET_OPEN`.
+- Liquidity gate diagnostic generated `PAPER_LIQUIDITY_GATE_REPORT_2026-06-03.md`; for the 2026-06-02 open, evaluated ticks passing volume thresholds were 25/30 at 25k, 20/30 at 50k, 9/30 at 75k, and 1/30 at the current 100k gate.
+- Paper gate scenario replay diagnostic generated `PAPER_GATE_SCENARIO_REPORT_2026-06-03.md`; candidate minimum-volume gates at 100k, 75k, 50k, and 25k still produced 0 proposals from 30 evaluated events. At lower thresholds, events that passed liquidity still failed net-edge checks.
+- Next paper-market window is the U.S. 2026-06-03 session, which is Thursday 2026-06-04 in Pacific/Auckland: market open 01:30 and market close 08:00.
+- Automation `market-open-paper-watch` is ACTIVE for Thursday 2026-06-04 01:30 Pacific/Auckland; it runs the guarded QQQ/iex market-open paper watch for 30 iterations with full preflight and closed-market retry handling.
+- Automation `market-close-paper-summary` is ACTIVE for Thursday 2026-06-04 08:10 Pacific/Auckland; it creates the post-close paper summary and morning seed message.
 
 ## Evidence Files
 
@@ -161,6 +170,13 @@ Operator resume command: **Lets continue.**
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-02.md`
 - `PAPER_LIQUIDITY_GATE_REPORT_2026-06-02.md`
 - `PAPER_GATE_SCENARIO_REPORT_2026-06-02.md`
+- `PAPER_WATCH_REPORT_2026-06-02.md`
+- `PAPER_WATCH_QUALITY_REPORT_2026-06-02.md`
+- `PAPER_OPS_EVIDENCE_2026-06-02.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-06-02.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-03.md`
+- `PAPER_LIQUIDITY_GATE_REPORT_2026-06-03.md`
+- `PAPER_GATE_SCENARIO_REPORT_2026-06-03.md`
 
 ## First Commands Tomorrow
 
