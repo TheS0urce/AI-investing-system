@@ -38,6 +38,7 @@ def test_next_action_runs_guarded_watch_when_preflight_go():
 
     assert result["action"] == "RUN_GUARDED_WATCH"
     assert "run_market_open_paper_watch.py" in result["command"]
+    assert "SPY,QQQ,AAPL,MSFT,NVDA" in result["command"]
 
 
 def test_next_action_flags_non_market_reasons():

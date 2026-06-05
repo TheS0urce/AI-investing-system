@@ -167,3 +167,63 @@ def test_guarded_watch_runs_read_only_ticks_when_market_open(capsys):
     assert "PAPER-WATCH-RUNNING" in output
     assert "PAPER-MARKET-OPEN-GO" in output
     assert output.count("WATCH-TICK-OK") == 2
+
+
+def test_parse_symbols_deduplicates_and_normalizes():
+    symbols = run_market_open_paper_watch.parse_symbols("spy, QQQ,spy,BRK.B", "QQQ")
+
+    assert symbols == ["SPY", "QQQ", "BRK.B"]
+
+
+def test_parse_symbols_rejects_empty_list():
+    try:
+        run_market_open_paper_watch.parse_symbols(" , ", "QQQ")
+    except ValueError as exc:
+        assert str(exc) == "symbols_required"
+    else:
+        raise AssertionError("expected symbols_required")
+
+
+def test_guarded_watchlist_runs_read_only_ticks_for_each_symbol_and_cycle(capsys):
+    calls = []
+
+    def fake_post_tick(api_base, api_key, symbol, feed, allow_closed_market):
+        calls.append((symbol, allow_closed_market))
+        return {"watch_status": "EVALUATED", "order_proposal": None}
+
+    result = run_market_open_paper_watch.run_guarded_watchlist(
+        api_base="http://127.0.0.1:8001",
+        api_key="test-key",
+        symbols=["SPY", "QQQ"],
+        feed="iex",
+        interval_seconds=60,
+        iterations=2,
+        preflight={"status": "PAPER-MARKET-OPEN-GO"},
+        post_tick=fake_post_tick,
+        sleep=lambda seconds: None,
+    )
+
+    assert result == 0
+    assert calls == [("SPY", False), ("QQQ", False), ("SPY", False), ("QQQ", False)]
+    output = capsys.readouterr().out
+    assert "PAPER-WATCHLIST-RUNNING" in output
+    assert output.count("WATCHLIST-TICK-OK") == 4
+
+
+def test_guarded_watchlist_refuses_when_preflight_fails(capsys):
+    calls = []
+
+    result = run_market_open_paper_watch.run_guarded_watchlist(
+        api_base="http://127.0.0.1:8001",
+        api_key="test-key",
+        symbols=["SPY", "QQQ"],
+        feed="iex",
+        interval_seconds=60,
+        iterations=1,
+        preflight={"status": "PAPER-MARKET-OPEN-NO-GO", "reasons": ["open_orders=1"]},
+        post_tick=lambda *args: calls.append(args) or {},
+    )
+
+    assert result == 1
+    assert calls == []
+    assert "PAPER-WATCHLIST-NO-GO" in capsys.readouterr().out

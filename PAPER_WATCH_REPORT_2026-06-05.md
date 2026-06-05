@@ -1,4 +1,4 @@
-# Paper Watch Report - 2026-06-04
+# Paper Watch Report - 2026-06-05
 
 ## Scope
 
@@ -6,7 +6,7 @@ This report summarizes paper watch-mode evidence. Watch mode is read-only and do
 
 ## Totals
 
-- Generated at: `2026-06-04T20:10:58.979696+00:00`
+- Generated at: `2026-06-05T20:12:49.640190+00:00`
 - Total ticks: `182`
 - Proposals: `0`
 - Blocked or no proposal: `182`

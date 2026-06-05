@@ -1,4 +1,4 @@
-# Paper Ops Evidence - 2026-06-04
+# Paper Ops Evidence - 2026-06-05
 
 ## Scope
 
@@ -6,7 +6,7 @@ This record documents the consolidated read-only paper operations state.
 
 ## Snapshot
 
-- Generated at: `2026-06-04T20:11:04.133089+00:00`
+- Generated at: `2026-06-05T20:12:57.628772+00:00`
 - Snapshot status: `PAPER-OPS-READY`
 - Broker status: `ALPACA-PAPER-READY`
 - Broker mode: `paper`
@@ -28,9 +28,9 @@ This record documents the consolidated read-only paper operations state.
 ## Paper Market Clock
 
 - Is open: `False`
-- Timestamp: `2026-06-04T16:11:03.430683471-04:00`
-- Next open: `2026-06-05T09:30:00-04:00`
-- Next close: `2026-06-05T16:00:00-04:00`
+- Timestamp: `2026-06-05T16:12:56.456364849-04:00`
+- Next open: `2026-06-08T09:30:00-04:00`
+- Next close: `2026-06-08T16:00:00-04:00`
 
 ## Safety Evidence
 

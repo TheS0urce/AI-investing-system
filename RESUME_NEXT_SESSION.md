@@ -16,7 +16,7 @@ Operator resume command: **Lets continue.**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 113 tests
+- Final validation: `./scripts/check.sh` passed with 117 tests
 
 ## Completed Today
 
@@ -133,6 +133,23 @@ Operator resume command: **Lets continue.**
 - Next paper-market window is the U.S. 2026-06-04 session, which is Friday 2026-06-05 in Pacific/Auckland: market open 01:30 and market close 08:00.
 - Automation `market-open-paper-watch` is ACTIVE for Friday 2026-06-05 01:30 Pacific/Auckland; it runs the guarded QQQ/iex market-open paper watch for 30 iterations with full preflight and closed-market retry handling.
 - Automation `market-close-paper-summary` is ACTIVE for Friday 2026-06-05 08:10 Pacific/Auckland; it creates the post-close paper summary and morning seed message.
+- Friday 2026-06-05 review: unattended market-open paper watch ran successfully for the U.S. 2026-06-04 open and completed 30/30 evaluated iterations.
+- Watch evidence after sixth successful run: total ticks `182`, evaluated ticks `180`, proposals `0`, audit details `insufficient_liquidity=147`, `insufficient_net_edge_after_costs=34`, `market_closed=1`.
+- Post-close evidence confirmed no paper submissions, open paper orders `0`, live routing disabled, autonomous execution disabled, readiness `PAPER-GO`, daily ops `PAPER-DAILY-GO`, strategy quality `STRATEGY-QUALITY-OK`, and next action `WAIT_FOR_MARKET_OPEN`.
+- Session-scoped quality report for the latest open confirmed `19` liquidity blocks, `11` net-edge blocks, `0` proposals, `volume_max=142287`, and no live routing or submission.
+- Liquidity gate diagnostic generated `PAPER_LIQUIDITY_GATE_REPORT_2026-06-05.md`; for the 2026-06-04 open, evaluated ticks passing volume thresholds were 26/30 at 25k, 21/30 at 50k, 16/30 at 75k, and 11/30 at the current 100k gate.
+- Paper gate scenario replay diagnostic generated `PAPER_GATE_SCENARIO_REPORT_2026-06-05.md`; candidate minimum-volume gates at 100k, 75k, 50k, and 25k still produced 0 proposals from 30 evaluated events.
+- Proposal blocker diagnostic generated `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-05.md`; 11 latest-session ticks passed current liquidity, but expected edge was `5.04 bps` versus the configured `9.0 bps` requirement, leaving a consistent `3.96 bps` edge shortfall.
+- Read-only paper watchlist support added and tested in the proven `run_market_open_paper_watch.py` launcher via `--symbols`; it runs one full market-open preflight, then cycles through a configurable symbol list with `auto_submit_enabled=false`; a closed-market probe failed closed with `session_plan=MARKET-CLOSED-WAIT`.
+- Next paper-market window is the U.S. 2026-06-05 session, which is Saturday 2026-06-06 in Pacific/Auckland: market open `2026-06-06 01:30` and market close `2026-06-06 08:00`.
+- Automation `market-open-paper-watch` is ACTIVE for Saturday 2026-06-06 01:30 Pacific/Auckland; it runs the guarded SPY/QQQ/AAPL/MSFT/NVDA iex paper watchlist for 30 cycles with full preflight and closed-market retry handling.
+- Automation `market-close-paper-summary` is ACTIVE for Saturday 2026-06-06 08:10 Pacific/Auckland; it creates the post-close paper summary, symbol coverage summary, proposal blocker report, and morning seed message.
+- Morning review on Saturday 2026-06-06 confirmed no new overnight paper watch/watchlist evidence for the Friday 2026-06-05 U.S. session; `logs/paper_watch_history.jsonl` still ends at `2026-06-04T14:01:23.427658+00:00`, so the latest open-market sample remains the Thursday 2026-06-04 U.S. open.
+- Root cause of the missed Friday U.S. watchlist run: the first standalone watchlist launcher path failed closed in automation with sandboxed local-API network access. The fix was to move watchlist support into the already proven `run_market_open_paper_watch.py` path and verify a clean closed-market fail-closed probe with `--symbols SPY,QQQ,AAPL,MSFT,NVDA`.
+- Current post-close state is still paper-only and green: readiness `PAPER-GO`, daily ops `PAPER-DAILY-GO`, strategy quality `STRATEGY-QUALITY-OK`, open paper orders `0`, live routing disabled, autonomous execution disabled, and next action `WAIT_FOR_MARKET_OPEN` for Monday 2026-06-09 01:30 Pacific/Auckland.
+- Fresh evidence generated for operator review: `PAPER_WATCH_REPORT_2026-06-05.md`, `PAPER_OPS_EVIDENCE_2026-06-05.md`, `PAPER_GO_NO_GO_CHECKLIST_2026-06-05.md`, and `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-06.md`; latest unchanged session diagnostics remain `PAPER_WATCH_QUALITY_REPORT_2026-06-04.md` and `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-05.md`.
+- Automation `market-open-paper-watch` is ACTIVE for Tuesday 2026-06-09 01:30 Pacific/Auckland; it runs `.venv/bin/python scripts/run_market_open_paper_watch.py --symbols SPY,QQQ,AAPL,MSFT,NVDA --feed iex --interval-seconds 60 --iterations 30`.
+- Automation `market-close-paper-summary` is ACTIVE for Tuesday 2026-06-09 08:10 Pacific/Auckland; it creates the post-close paper summary, symbol coverage summary, proposal blocker report, and morning seed message.
 
 ## Evidence Files
 
@@ -195,6 +212,15 @@ Operator resume command: **Lets continue.**
 - `PAPER_LIQUIDITY_GATE_REPORT_2026-06-04.md`
 - `PAPER_GATE_SCENARIO_REPORT_2026-06-04.md`
 - `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-04.md`
+- `PAPER_WATCH_REPORT_2026-06-04.md`
+- `PAPER_WATCH_QUALITY_REPORT_2026-06-04.md`
+- `PAPER_OPS_EVIDENCE_2026-06-04.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-06-04.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-05.md`
+- `PAPER_LIQUIDITY_GATE_REPORT_2026-06-05.md`
+- `PAPER_GATE_SCENARIO_REPORT_2026-06-05.md`
+- `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-05.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-06-05.md`
 
 ## First Commands Tomorrow
 

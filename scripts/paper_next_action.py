@@ -18,7 +18,7 @@ def action_from_preflight(preflight: dict[str, Any]) -> dict[str, Any]:
     if status == "PAPER-MARKET-OPEN-GO":
         action = "RUN_GUARDED_WATCH"
         detail = "Paper market is open and preflight gates passed."
-        command = ".venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30"
+        command = ".venv/bin/python scripts/run_market_open_paper_watch.py --symbols SPY,QQQ,AAPL,MSFT,NVDA --feed iex --interval-seconds 60 --iterations 30"
     elif "session_plan=MARKET-CLOSED-WAIT" in reasons:
         action = "WAIT_FOR_MARKET_OPEN"
         detail = (
