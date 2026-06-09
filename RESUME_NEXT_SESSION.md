@@ -150,6 +150,10 @@ Operator resume command: **Lets continue.**
 - Fresh evidence generated for operator review: `PAPER_WATCH_REPORT_2026-06-05.md`, `PAPER_OPS_EVIDENCE_2026-06-05.md`, `PAPER_GO_NO_GO_CHECKLIST_2026-06-05.md`, and `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-06.md`; latest unchanged session diagnostics remain `PAPER_WATCH_QUALITY_REPORT_2026-06-04.md` and `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-05.md`.
 - Automation `market-open-paper-watch` is ACTIVE for Tuesday 2026-06-09 01:30 Pacific/Auckland; it runs `.venv/bin/python scripts/run_market_open_paper_watch.py --symbols SPY,QQQ,AAPL,MSFT,NVDA --feed iex --interval-seconds 60 --iterations 30`.
 - Automation `market-close-paper-summary` is ACTIVE for Tuesday 2026-06-09 08:10 Pacific/Auckland; it creates the post-close paper summary, symbol coverage summary, proposal blocker report, and morning seed message.
+- Tuesday 2026-06-09 review: the watchlist automation failed closed before running ticks because its RRULE was interpreted as UTC, so `BYHOUR=1` fired at `13:30 Pacific/Auckland` while the U.S. market was closed. No new watch ticks or proposals were recorded.
+- Corrected automation schedule uses UTC equivalents for the next U.S. session: `market-open-paper-watch` is ACTIVE for Tuesday 2026-06-09 13:30 UTC, which is Wednesday 2026-06-10 01:30 Pacific/Auckland; `market-close-paper-summary` is ACTIVE for Tuesday 2026-06-09 20:10 UTC, which is Wednesday 2026-06-10 08:10 Pacific/Auckland.
+- Current state after correction: readiness `PAPER-GO`, daily ops `PAPER-DAILY-GO`, strategy quality `STRATEGY-QUALITY-OK`, open paper orders `0`, live routing disabled, autonomous execution disabled, and next action `WAIT_FOR_MARKET_OPEN`.
+- Fresh evidence generated for this correction review: `PAPER_WATCH_REPORT_2026-06-09.md`, `PAPER_OPS_EVIDENCE_2026-06-09.md`, `PAPER_GO_NO_GO_CHECKLIST_2026-06-09.md`, and `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-09.md`.
 
 ## Evidence Files
 
@@ -221,6 +225,10 @@ Operator resume command: **Lets continue.**
 - `PAPER_GATE_SCENARIO_REPORT_2026-06-05.md`
 - `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-05.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-06-05.md`
+- `PAPER_WATCH_REPORT_2026-06-09.md`
+- `PAPER_OPS_EVIDENCE_2026-06-09.md`
+- `PAPER_GO_NO_GO_CHECKLIST_2026-06-09.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-09.md`
 
 ## First Commands Tomorrow
 
@@ -243,7 +251,7 @@ curl -s "http://127.0.0.1:8001/broker/paper/strategy_preview?symbol=QQQ&feed=iex
 .venv/bin/python scripts/paper_next_action.py
 curl -s "http://127.0.0.1:8001/broker/paper/market_open_preflight" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/next_action" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
-.venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
+.venv/bin/python scripts/run_market_open_paper_watch.py --symbols SPY,QQQ,AAPL,MSFT,NVDA --feed iex --interval-seconds 60 --iterations 30
 .venv/bin/python scripts/run_paper_watch.py --symbol QQQ --feed iex --interval-seconds 5 --iterations 1
 curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
 curl -s "http://127.0.0.1:8001/broker/paper/watch_summary?limit=500" -H "X-API-Key: $(grep '^AI_API_KEY=' .env | cut -d= -f2-)"
