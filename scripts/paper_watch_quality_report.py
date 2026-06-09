@@ -75,6 +75,19 @@ def build_quality_report(
         None,
     )
 
+    if proposals:
+        conclusion = (
+            "Paper watch produced manual-review proposals while keeping auto-submit disabled and live routing off. "
+            "Review residual blocks separately before changing gates."
+        )
+    elif audit_counts.get("insufficient_liquidity") and audit_counts.get("insufficient_net_edge_after_costs"):
+        conclusion = (
+            "Paper watch ran without proposals. Liquidity was intermittent or still accumulating during the "
+            "open-window sample; ticks that passed market gates were blocked by net edge after costs."
+        )
+    else:
+        conclusion = "Paper watch history reviewed without enabling routing or submission."
+
     return {
         "status": "PAPER-WATCH-QUALITY-READY",
         "scope": "read_only_watch_history_diagnostic",
@@ -91,11 +104,7 @@ def build_quality_report(
         "spread_bps_max": max(spreads) if spreads else None,
         "auto_submit_enabled": False,
         "live_trading_approved": False,
-        "conclusion": (
-            "Paper watch ran without proposals. Liquidity was intermittent or still accumulating during the open-window sample; ticks that passed market gates were blocked by net edge after costs."
-            if audit_counts.get("insufficient_liquidity") and audit_counts.get("insufficient_net_edge_after_costs")
-            else "Paper watch history reviewed without enabling routing or submission."
-        ),
+        "conclusion": conclusion,
     }
 
 

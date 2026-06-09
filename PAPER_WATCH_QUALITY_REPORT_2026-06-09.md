@@ -1,47 +1,31 @@
-# Paper Watch Report - 2026-06-09
+# Paper Watch Quality Report - 2026-06-09
 
 ## Scope
 
-This report summarizes paper watch-mode evidence. Watch mode is read-only and does not submit orders.
+This report diagnoses read-only paper watch history. It does not submit orders or enable live routing.
 
 ## Totals
 
-- Generated at: `2026-06-09T20:11:20.898775+00:00`
-- Total ticks: `332`
-- Proposals: `19`
-- Blocked or no proposal: `313`
+- Generated at: `2026-06-09T21:42:57.096504+00:00`
+- Since: `2026-06-09T13:38:32.353301+00:00`
+- Total events: `120`
+- Evaluated events: `120`
+- Proposal count: `19`
 - Auto submit enabled: `False`
+- Live trading approved: `False`
 
-## Watch Statuses
+## Market Data
 
-- EVALUATED: `330`
-- SKIPPED_MARKET_CLOSED: `1`
-- unknown: `1`
-
-## Symbols
-
-- AAPL: `30`
-- MSFT: `30`
-- NVDA: `30`
-- QQQ: `212`
-- SPY: `30`
-
-## Feeds
-
-- iex: `332`
-
-## Audit Events
-
-- manual_review_required: `19`
-- market_block: `220`
-- order_block: `92`
-- watch_skip: `1`
+- Min volume threshold: `100000.0`
+- First liquidity pass: `2026-06-09T13:38:45.461885+00:00`
+- First liquidity block: `2026-06-09T13:38:32.353301+00:00`
+- Volume min / max: `26451.0` / `541050.0`
+- Max spread bps: `512.7347845295957`
 
 ## Audit Details
 
-- insufficient_liquidity: `188`
-- insufficient_net_edge_after_costs: `90`
-- market_closed: `1`
+- insufficient_liquidity: `25`
+- insufficient_net_edge_after_costs: `52`
 - order_notional_too_large: `2`
 - proposed Side.SELL 4.6980 AAPL: `1`
 - proposed Side.SELL 5.4059 AAPL: `1`
@@ -62,8 +46,8 @@ This report summarizes paper watch-mode evidence. Watch mode is read-only and do
 - proposed Side.SELL 7.9118 NVDA: `1`
 - proposed Side.SELL 7.9952 NVDA: `1`
 - proposed Side.SELL 8.2872 NVDA: `1`
-- spread_too_wide: `32`
+- spread_too_wide: `22`
 
 ## Operator Conclusion
 
-Paper watch evidence has been summarized without enabling live routing or paper auto-submit.
+Paper watch produced manual-review proposals while keeping auto-submit disabled and live routing off. Review residual blocks separately before changing gates.

@@ -136,7 +136,19 @@ def test_guarded_watch_refuses_when_preflight_has_non_session_reason(capsys):
 def test_guarded_watch_runs_read_only_ticks_when_market_open(capsys):
     calls = []
 
-    def fake_post_tick(api_base, api_key, symbol, feed, allow_closed_market):
+    def fake_post_tick(
+        api_base,
+        api_key,
+        symbol,
+        feed,
+        allow_closed_market,
+        use_paper_account=True,
+        cash=1_000.0,
+        equity=1_000.0,
+        peak_equity=1_000.0,
+        daily_pnl=0.0,
+        consecutive_losses=0,
+    ):
         calls.append(
             {
                 "api_base": api_base,
@@ -144,6 +156,12 @@ def test_guarded_watch_runs_read_only_ticks_when_market_open(capsys):
                 "symbol": symbol,
                 "feed": feed,
                 "allow_closed_market": allow_closed_market,
+                "use_paper_account": use_paper_account,
+                "cash": cash,
+                "equity": equity,
+                "peak_equity": peak_equity,
+                "daily_pnl": daily_pnl,
+                "consecutive_losses": consecutive_losses,
             }
         )
         return {"watch_status": "EVALUATED", "order_proposal": None}
@@ -163,10 +181,56 @@ def test_guarded_watch_runs_read_only_ticks_when_market_open(capsys):
     assert result == 0
     assert len(calls) == 2
     assert all(call["allow_closed_market"] is False for call in calls)
+    assert all(call["use_paper_account"] is True for call in calls)
     output = capsys.readouterr().out
     assert "PAPER-WATCH-RUNNING" in output
     assert "PAPER-MARKET-OPEN-GO" in output
     assert output.count("WATCH-TICK-OK") == 2
+
+
+def test_guarded_watch_passes_simulated_capital_to_ticks(capsys):
+    calls = []
+
+    def fake_post_tick(*args):
+        calls.append(args)
+        return {"watch_status": "EVALUATED", "order_proposal": None}
+
+    result = run_market_open_paper_watch.run_guarded_watch(
+        api_base="http://127.0.0.1:8001",
+        api_key="test-key",
+        symbol="AAPL",
+        feed="iex",
+        interval_seconds=60,
+        iterations=1,
+        preflight={"status": "PAPER-MARKET-OPEN-GO", "market_is_open": True},
+        use_paper_account=False,
+        cash=100.0,
+        equity=100.0,
+        peak_equity=100.0,
+        daily_pnl=0.0,
+        consecutive_losses=0,
+        post_tick=fake_post_tick,
+    )
+
+    assert result == 0
+    assert calls == [
+        (
+            "http://127.0.0.1:8001",
+            "test-key",
+            "AAPL",
+            "iex",
+            False,
+            False,
+            100.0,
+            100.0,
+            100.0,
+            0.0,
+            0,
+        )
+    ]
+    output = capsys.readouterr().out
+    assert '"use_paper_account": false' in output
+    assert '"simulated_equity": 100.0' in output
 
 
 def test_parse_symbols_deduplicates_and_normalizes():
@@ -187,8 +251,8 @@ def test_parse_symbols_rejects_empty_list():
 def test_guarded_watchlist_runs_read_only_ticks_for_each_symbol_and_cycle(capsys):
     calls = []
 
-    def fake_post_tick(api_base, api_key, symbol, feed, allow_closed_market):
-        calls.append((symbol, allow_closed_market))
+    def fake_post_tick(api_base, api_key, symbol, feed, allow_closed_market, use_paper_account=True, *args):
+        calls.append((symbol, allow_closed_market, use_paper_account))
         return {"watch_status": "EVALUATED", "order_proposal": None}
 
     result = run_market_open_paper_watch.run_guarded_watchlist(
@@ -204,7 +268,7 @@ def test_guarded_watchlist_runs_read_only_ticks_for_each_symbol_and_cycle(capsys
     )
 
     assert result == 0
-    assert calls == [("SPY", False), ("QQQ", False), ("SPY", False), ("QQQ", False)]
+    assert calls == [("SPY", False, True), ("QQQ", False, True), ("SPY", False, True), ("QQQ", False, True)]
     output = capsys.readouterr().out
     assert "PAPER-WATCHLIST-RUNNING" in output
     assert output.count("WATCHLIST-TICK-OK") == 4

@@ -40,6 +40,24 @@ def test_quality_report_identifies_liquidity_pass_and_edge_blocks():
     assert report["first_liquidity_block_at"] == "2026-05-28T13:31:00+00:00"
     assert report["volume_min"] == 50_000.0
     assert report["volume_max"] == 110_000.0
+    assert str(report["conclusion"]).startswith("Paper watch ran without proposals.")
+
+
+def test_quality_report_identifies_successful_manual_review_proposals():
+    events = [
+        {
+            "at": "2026-06-09T13:40:00+00:00",
+            "watch_status": "EVALUATED",
+            "market": {"volume_24h": 250_000.0, "spread_bps": 1.5},
+            "order_proposal": {"symbol": "AAPL", "side": "sell"},
+            "latest_audit": {"details": "proposed Side.SELL 5.4059 AAPL"},
+        }
+    ]
+
+    report = paper_watch_quality_report.build_quality_report(events, min_volume=100_000.0)
+
+    assert report["proposal_count"] == 1
+    assert "produced manual-review proposals" in str(report["conclusion"])
 
 
 def test_quality_markdown_preserves_guardrails():

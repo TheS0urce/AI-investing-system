@@ -50,6 +50,20 @@ def build_proposal_blocker_report(events: list[dict[str, Any]], *, since: str | 
     edge_values = [edge for item in liquidity_pass if (edge := expected_edge_bps_from_event(item)) is not None]
     edge_shortfalls = [round(required_edge_bps - edge, 6) for edge in edge_values if edge < required_edge_bps]
 
+    if proposals:
+        conclusion = (
+            "Proposal generation is no longer blocked in this sample: read-only watch produced manual-review "
+            "paper proposals. Remaining blocked ticks should be treated as residual gate diagnostics, not a "
+            "global proposal blocker."
+        )
+    elif edge_shortfalls:
+        conclusion = (
+            "The latest proposal blocker is strategy edge, not execution plumbing: ticks that pass liquidity "
+            "still fall below the configured net-edge requirement."
+        )
+    else:
+        conclusion = "No edge shortfall was observed in this sample; inspect other safety gates before changing strategy parameters."
+
     return {
         "status": "PAPER-PROPOSAL-BLOCKER-READY",
         "scope": "read_only_watch_history_diagnostic",
@@ -66,11 +80,7 @@ def build_proposal_blocker_report(events: list[dict[str, Any]], *, since: str | 
         "edge_shortfall_max": max(edge_shortfalls) if edge_shortfalls else None,
         "auto_submit_enabled": False,
         "live_trading_approved": False,
-        "conclusion": (
-            "The latest proposal blocker is strategy edge, not execution plumbing: ticks that pass liquidity still fall below the configured net-edge requirement."
-            if edge_shortfalls
-            else "No edge shortfall was observed in this sample; inspect other safety gates before changing strategy parameters."
-        ),
+        "conclusion": conclusion,
     }
 
 

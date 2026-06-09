@@ -78,7 +78,13 @@ def run_guarded_watch(
     interval_seconds: float,
     iterations: int,
     preflight: dict[str, object],
-    post_tick: Callable[[str, str, str, str, bool], dict[str, object]] = post_watch_tick,
+    use_paper_account: bool = True,
+    cash: float = 1_000.0,
+    equity: float = 1_000.0,
+    peak_equity: float = 1_000.0,
+    daily_pnl: float = 0.0,
+    consecutive_losses: int = 0,
+    post_tick: Callable[..., dict[str, object]] = post_watch_tick,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     if preflight.get("status") != "PAPER-MARKET-OPEN-GO":
@@ -102,12 +108,26 @@ def run_guarded_watch(
                 "interval_seconds": interval_seconds,
                 "iterations": iterations,
                 "auto_submit_enabled": False,
+                "use_paper_account": use_paper_account,
+                "simulated_equity": None if use_paper_account else equity,
                 "preflight_status": preflight.get("status"),
             }
         )
     )
     for index in range(iterations):
-        event = post_tick(api_base, api_key, symbol, feed, False)
+        event = post_tick(
+            api_base,
+            api_key,
+            symbol,
+            feed,
+            False,
+            use_paper_account,
+            cash,
+            equity,
+            peak_equity,
+            daily_pnl,
+            consecutive_losses,
+        )
         print(json.dumps({"status": "WATCH-TICK-OK", "iteration": index + 1, "event": event}))
         if index < iterations - 1:
             sleep(interval_seconds)
@@ -123,7 +143,13 @@ def run_guarded_watchlist(
     interval_seconds: float,
     iterations: int,
     preflight: dict[str, object],
-    post_tick: Callable[[str, str, str, str, bool], dict[str, object]] = post_watch_tick,
+    use_paper_account: bool = True,
+    cash: float = 1_000.0,
+    equity: float = 1_000.0,
+    peak_equity: float = 1_000.0,
+    daily_pnl: float = 0.0,
+    consecutive_losses: int = 0,
+    post_tick: Callable[..., dict[str, object]] = post_watch_tick,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     if len(symbols) == 1:
@@ -135,6 +161,12 @@ def run_guarded_watchlist(
             interval_seconds=interval_seconds,
             iterations=iterations,
             preflight=preflight,
+            use_paper_account=use_paper_account,
+            cash=cash,
+            equity=equity,
+            peak_equity=peak_equity,
+            daily_pnl=daily_pnl,
+            consecutive_losses=consecutive_losses,
             post_tick=post_tick,
             sleep=sleep,
         )
@@ -160,13 +192,27 @@ def run_guarded_watchlist(
                 "iterations": iterations,
                 "ticks_planned": len(symbols) * iterations,
                 "auto_submit_enabled": False,
+                "use_paper_account": use_paper_account,
+                "simulated_equity": None if use_paper_account else equity,
                 "preflight_status": preflight.get("status"),
             }
         )
     )
     for cycle_index in range(iterations):
         for symbol in symbols:
-            event = post_tick(api_base, api_key, symbol, feed, False)
+            event = post_tick(
+                api_base,
+                api_key,
+                symbol,
+                feed,
+                False,
+                use_paper_account,
+                cash,
+                equity,
+                peak_equity,
+                daily_pnl,
+                consecutive_losses,
+            )
             print(
                 json.dumps(
                     {
@@ -191,6 +237,9 @@ def main() -> int:
     parser.add_argument("--iterations", type=int, default=30)
     parser.add_argument("--preflight-attempts", type=int, default=3)
     parser.add_argument("--preflight-retry-delay-seconds", type=float, default=300.0)
+    parser.add_argument("--simulated-equity", type=float, default=None)
+    parser.add_argument("--daily-pnl", type=float, default=0.0)
+    parser.add_argument("--consecutive-losses", type=int, default=0)
     args = parser.parse_args()
 
     try:
@@ -210,6 +259,9 @@ def main() -> int:
     if args.preflight_retry_delay_seconds < 0:
         print(json.dumps({"status": "NO-GO", "reason": "preflight_retry_delay_seconds_must_be_non_negative"}))
         return 1
+    if args.simulated_equity is not None and args.simulated_equity <= 0:
+        print(json.dumps({"status": "NO-GO", "reason": "simulated_equity_must_be_positive"}))
+        return 1
 
     load_dotenv(ROOT / ".env")
     api_base = os.getenv("AI_API_BASE", "http://127.0.0.1:8001")
@@ -217,6 +269,11 @@ def main() -> int:
     if not api_key:
         print(json.dumps({"status": "NO-GO", "reason": "api_key_missing"}))
         return 1
+
+    use_paper_account = args.simulated_equity is None
+    cash = args.simulated_equity if args.simulated_equity is not None else 1_000.0
+    equity = args.simulated_equity if args.simulated_equity is not None else 1_000.0
+    peak_equity = args.simulated_equity if args.simulated_equity is not None else 1_000.0
 
     try:
         preflight = wait_for_market_open_preflight(
@@ -233,6 +290,12 @@ def main() -> int:
             interval_seconds=args.interval_seconds,
             iterations=args.iterations,
             preflight=preflight,
+            use_paper_account=use_paper_account,
+            cash=cash,
+            equity=equity,
+            peak_equity=peak_equity,
+            daily_pnl=args.daily_pnl,
+            consecutive_losses=args.consecutive_losses,
         )
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8")[:500]

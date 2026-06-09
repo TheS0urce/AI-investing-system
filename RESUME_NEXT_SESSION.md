@@ -16,7 +16,7 @@ Operator resume command: **Lets continue.**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 119 tests
+- Final validation: `./scripts/check.sh` passed with 121 tests
 
 ## Completed Today
 
@@ -157,6 +157,11 @@ Operator resume command: **Lets continue.**
 - Strategy proposal blocker fix added on 2026-06-09: Alpaca market snapshots now carry `intraday_change_bps` from daily open to current price, and `SimpleMomentumStrategy` uses that observable intraday momentum before falling back to the older volatility proxy.
 - Updated synthetic evidence generated `PAPER_STRATEGY_SCENARIO_REPORT_2026-06-09.md`; scenario `intraday_momentum_reaches_manual_review` creates a manual-review paper proposal with expected edge `10.818182 bps`, clearing the configured `9.0 bps` requirement without changing liquidity, spread, net-edge, live-routing, or auto-submit guardrails.
 - `strategy_quality_report.py` now reports max theoretical intraday edge `14.0 bps`, required edge `9.0 bps`, and status `STRATEGY-QUALITY-OK`.
+- Wednesday 2026-06-10 review confirmed the corrected overnight watch succeeded: `332` total ticks, `330` evaluated ticks, and `19` manual-review paper proposals across AAPL/NVDA while auto-submit stayed disabled and live routing stayed off.
+- Corrected diagnostic reports generated `PAPER_WATCH_QUALITY_REPORT_2026-06-09.md` and `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-09.md`; both now identify proposal generation as cleared for this sample, with remaining blocks treated as residual gate diagnostics.
+- Representative sizing blocker identified: the successful overnight run used Alpaca's `$100,000` paper account, so proposal notionals were sized around the paper-account risk budget rather than the intended `$100 USD` live seed capital.
+- Watch launchers now support `--simulated-equity`; next automation is ACTIVE for Wednesday 2026-06-10 13:30 UTC, which is Thursday 2026-06-11 01:30 Pacific/Auckland, and runs `.venv/bin/python scripts/run_market_open_paper_watch.py --symbols SPY,QQQ,AAPL,MSFT,NVDA --feed iex --interval-seconds 60 --iterations 30 --simulated-equity 100`.
+- Matching post-close summary automation is ACTIVE for Wednesday 2026-06-10 20:10 UTC, which is Thursday 2026-06-11 08:10 Pacific/Auckland.
 
 ## Evidence Files
 
@@ -233,6 +238,8 @@ Operator resume command: **Lets continue.**
 - `PAPER_GO_NO_GO_CHECKLIST_2026-06-09.md`
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-09.md`
 - `PAPER_STRATEGY_SCENARIO_REPORT_2026-06-09.md`
+- `PAPER_WATCH_QUALITY_REPORT_2026-06-09.md`
+- `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-09.md`
 
 ## First Commands Tomorrow
 

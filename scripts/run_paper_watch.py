@@ -29,13 +29,24 @@ def post_watch_tick(
     symbol: str,
     feed: str,
     allow_closed_market: bool,
+    use_paper_account: bool = True,
+    cash: float = 1_000.0,
+    equity: float = 1_000.0,
+    peak_equity: float = 1_000.0,
+    daily_pnl: float = 0.0,
+    consecutive_losses: int = 0,
 ) -> dict[str, object]:
     body = json.dumps(
         {
             "symbol": symbol,
             "feed": feed,
-            "use_paper_account": True,
+            "use_paper_account": use_paper_account,
             "allow_closed_market": allow_closed_market,
+            "cash": cash,
+            "equity": equity,
+            "peak_equity": peak_equity,
+            "daily_pnl": daily_pnl,
+            "consecutive_losses": consecutive_losses,
         }
     ).encode("utf-8")
     request = urllib.request.Request(
@@ -58,6 +69,9 @@ def main() -> int:
     parser.add_argument("--interval-seconds", type=float, default=60.0)
     parser.add_argument("--iterations", type=int, default=5)
     parser.add_argument("--allow-closed-market", action="store_true")
+    parser.add_argument("--simulated-equity", type=float, default=None)
+    parser.add_argument("--daily-pnl", type=float, default=0.0)
+    parser.add_argument("--consecutive-losses", type=int, default=0)
     args = parser.parse_args()
 
     if args.interval_seconds < 5:
@@ -65,6 +79,9 @@ def main() -> int:
         return 1
     if args.iterations <= 0 or args.iterations > 500:
         print(json.dumps({"status": "NO-GO", "reason": "iterations_must_be_between_1_and_500"}))
+        return 1
+    if args.simulated_equity is not None and args.simulated_equity <= 0:
+        print(json.dumps({"status": "NO-GO", "reason": "simulated_equity_must_be_positive"}))
         return 1
 
     load_dotenv(ROOT / ".env")
@@ -74,9 +91,26 @@ def main() -> int:
         print(json.dumps({"status": "NO-GO", "reason": "api_key_missing"}))
         return 1
 
+    use_paper_account = args.simulated_equity is None
+    cash = args.simulated_equity if args.simulated_equity is not None else 1_000.0
+    equity = args.simulated_equity if args.simulated_equity is not None else 1_000.0
+    peak_equity = args.simulated_equity if args.simulated_equity is not None else 1_000.0
+
     for index in range(args.iterations):
         try:
-            event = post_watch_tick(api_base, api_key, args.symbol.upper(), args.feed, args.allow_closed_market)
+            event = post_watch_tick(
+                api_base,
+                api_key,
+                args.symbol.upper(),
+                args.feed,
+                args.allow_closed_market,
+                use_paper_account,
+                cash,
+                equity,
+                peak_equity,
+                args.daily_pnl,
+                args.consecutive_losses,
+            )
         except urllib.error.HTTPError as exc:
             body = exc.read().decode("utf-8")[:500]
             print(json.dumps({"status": "NO-GO", "reason": f"http_error:{exc.code}:{body}"}))
