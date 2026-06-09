@@ -29,6 +29,7 @@ def parse_market(event: dict[str, Any]) -> MarketSnapshot | None:
             volume_24h=float(market.get("volume_24h", 0.0)),
             volatility_30d=float(market.get("volatility_30d", 0.03)),
             timestamp=timestamp,
+            intraday_change_bps=float(market.get("intraday_change_bps", 0.0)),
         )
     except (TypeError, ValueError):
         return None

@@ -22,12 +22,14 @@ Generated for operator review on `2026-06-09` (`Pacific/Auckland`), after the sc
 - `PAPER_WATCH_REPORT_2026-06-09.md`
 - `PAPER_OPS_EVIDENCE_2026-06-09.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-06-09.md`
+- `PAPER_STRATEGY_SCENARIO_REPORT_2026-06-09.md`
 
 ## Verification
 
 - Integrated watchlist command reached preflight and failed closed with `session_plan=MARKET-CLOSED-WAIT`.
-- `./scripts/check.sh` passed with `117` tests.
+- `./scripts/check.sh` passed with `119` tests.
+- Strategy blocker fix verified: synthetic scenario `intraday_momentum_reaches_manual_review` creates a manual-review paper proposal with expected edge `10.818182 bps`, above the configured `9.0 bps` edge requirement.
 
 ## Operator Conclusion
 
-The missed run was scheduling-clock related, not a trading-system failure. The system stayed paper-only and safe. The next watchlist attempt is scheduled for Wednesday `2026-06-10 01:30 Pacific/Auckland` using the integrated guarded paper watchlist path.
+The missed run was scheduling-clock related, not a trading-system failure. The system stayed paper-only and safe. Separately, the proposal blocker was addressed by replacing the volatility-only placeholder signal with an intraday-momentum proposal path that uses Alpaca snapshot data while preserving liquidity, spread, net-edge, live-routing, and auto-submit guardrails. The next watchlist attempt is scheduled for Wednesday `2026-06-10 01:30 Pacific/Auckland` using the integrated guarded paper watchlist path.

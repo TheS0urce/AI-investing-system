@@ -19,9 +19,11 @@ def test_strategy_quality_report_passes_after_edge_model_improvement():
     report = strategy_quality_report.build_strategy_quality_report()
 
     assert report.status == "STRATEGY-QUALITY-OK"
-    assert report.max_theoretical_edge_bps == 10.08
+    assert report.max_theoretical_edge_bps == 14.0
     assert report.required_edge_bps == 9.0
     assert report.edge_shortfall_bps == 0.0
+    assert report.min_intraday_signal_bps == 70.0
+    assert report.intraday_bps_per_full_conviction == 110.0
     assert report.conclusion == "current_strategy_can_pass_net_edge_gate"
 
 

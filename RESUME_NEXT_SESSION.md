@@ -16,7 +16,7 @@ Operator resume command: **Lets continue.**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 117 tests
+- Final validation: `./scripts/check.sh` passed with 119 tests
 
 ## Completed Today
 
@@ -154,6 +154,9 @@ Operator resume command: **Lets continue.**
 - Corrected automation schedule uses UTC equivalents for the next U.S. session: `market-open-paper-watch` is ACTIVE for Tuesday 2026-06-09 13:30 UTC, which is Wednesday 2026-06-10 01:30 Pacific/Auckland; `market-close-paper-summary` is ACTIVE for Tuesday 2026-06-09 20:10 UTC, which is Wednesday 2026-06-10 08:10 Pacific/Auckland.
 - Current state after correction: readiness `PAPER-GO`, daily ops `PAPER-DAILY-GO`, strategy quality `STRATEGY-QUALITY-OK`, open paper orders `0`, live routing disabled, autonomous execution disabled, and next action `WAIT_FOR_MARKET_OPEN`.
 - Fresh evidence generated for this correction review: `PAPER_WATCH_REPORT_2026-06-09.md`, `PAPER_OPS_EVIDENCE_2026-06-09.md`, `PAPER_GO_NO_GO_CHECKLIST_2026-06-09.md`, and `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-09.md`.
+- Strategy proposal blocker fix added on 2026-06-09: Alpaca market snapshots now carry `intraday_change_bps` from daily open to current price, and `SimpleMomentumStrategy` uses that observable intraday momentum before falling back to the older volatility proxy.
+- Updated synthetic evidence generated `PAPER_STRATEGY_SCENARIO_REPORT_2026-06-09.md`; scenario `intraday_momentum_reaches_manual_review` creates a manual-review paper proposal with expected edge `10.818182 bps`, clearing the configured `9.0 bps` requirement without changing liquidity, spread, net-edge, live-routing, or auto-submit guardrails.
+- `strategy_quality_report.py` now reports max theoretical intraday edge `14.0 bps`, required edge `9.0 bps`, and status `STRATEGY-QUALITY-OK`.
 
 ## Evidence Files
 
@@ -229,6 +232,7 @@ Operator resume command: **Lets continue.**
 - `PAPER_OPS_EVIDENCE_2026-06-09.md`
 - `PAPER_GO_NO_GO_CHECKLIST_2026-06-09.md`
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-09.md`
+- `PAPER_STRATEGY_SCENARIO_REPORT_2026-06-09.md`
 
 ## First Commands Tomorrow
 

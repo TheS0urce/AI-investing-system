@@ -60,6 +60,28 @@ def test_process_tick_proposes_order_for_strong_signal():
     assert system.audit_log[-1].event == "manual_review_required"
 
 
+def test_process_tick_proposes_order_for_intraday_momentum():
+    cfg = SystemConfig()
+    system = InvestingSystem(cfg, SimpleMomentumStrategy())
+    market = base_market()
+    market = MarketSnapshot(
+        symbol=market.symbol,
+        price=market.price,
+        spread_bps=market.spread_bps,
+        volume_24h=market.volume_24h,
+        volatility_30d=market.volatility_30d,
+        timestamp=market.timestamp,
+        intraday_change_bps=85.0,
+    )
+
+    order = system.process_tick(market, base_portfolio())
+
+    assert order is not None
+    assert order.expected_edge_bps == pytest.approx(10.8181818)
+    assert order.reason == "intraday momentum from daily open"
+    assert system.audit_log[-1].event == "manual_review_required"
+
+
 def test_process_tick_blocks_bad_market():
     cfg = SystemConfig()
     system = InvestingSystem(cfg, SimpleMomentumStrategy())

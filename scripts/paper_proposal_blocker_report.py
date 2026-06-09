@@ -14,19 +14,25 @@ sys.path.insert(0, str(ROOT))
 
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.execution import EXPECTED_EDGE_BPS_PER_CONVICTION
-
-
-def conviction_from_volatility(volatility_30d: float) -> float | None:
-    if volatility_30d <= 0:
-        return None
-    return min(1.0, max(-1.0, (0.06 - volatility_30d) * 12))
+from src.ai_investing.models import MarketSnapshot
+from src.ai_investing.strategy import intraday_momentum_conviction, volatility_proxy_conviction
 
 
 def expected_edge_bps_from_event(event: dict[str, Any]) -> float | None:
+    market = event.get("market") if isinstance(event.get("market"), dict) else {}
     volatility = market_value(event, "volatility_30d")
     if volatility is None:
         return None
-    conviction = conviction_from_volatility(volatility)
+    snapshot = MarketSnapshot(
+        symbol=str(event.get("symbol", market.get("symbol", "QQQ"))),
+        price=float(market.get("price", 1.0) or 1.0),
+        spread_bps=float(market.get("spread_bps", 0.0) or 0.0),
+        volume_24h=float(market.get("volume_24h", 0.0) or 0.0),
+        volatility_30d=volatility,
+        timestamp=datetime.now(timezone.utc),
+        intraday_change_bps=float(market.get("intraday_change_bps", 0.0) or 0.0),
+    )
+    conviction = intraday_momentum_conviction(snapshot) or volatility_proxy_conviction(snapshot)
     if conviction is None or abs(conviction) < 0.1:
         return None
     return EXPECTED_EDGE_BPS_PER_CONVICTION * abs(conviction)

@@ -130,6 +130,7 @@ def serialize_market(market: MarketSnapshot):
         "spread_bps": market.spread_bps,
         "volume_24h": market.volume_24h,
         "volatility_30d": market.volatility_30d,
+        "intraday_change_bps": market.intraday_change_bps,
         "timestamp": market.timestamp.isoformat(),
     }
 

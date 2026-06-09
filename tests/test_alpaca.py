@@ -103,7 +103,7 @@ def test_market_snapshot_from_alpaca_payload_uses_trade_quote_and_daily_volume()
         {
             "latestTrade": {"p": 430.12, "t": "2026-05-22T20:00:00Z"},
             "latestQuote": {"bp": 430.1, "ap": 430.2},
-            "dailyBar": {"v": 12_345_678},
+            "dailyBar": {"o": 425.0, "v": 12_345_678},
         },
         default_volatility_30d=0.04,
     )
@@ -112,6 +112,7 @@ def test_market_snapshot_from_alpaca_payload_uses_trade_quote_and_daily_volume()
     assert snapshot.spread_bps == pytest.approx(2.3247704)
     assert snapshot.volume_24h == 12_345_678
     assert snapshot.volatility_30d == 0.04
+    assert snapshot.intraday_change_bps == pytest.approx(120.470588)
 
 
 def test_market_snapshot_from_alpaca_payload_requires_price():

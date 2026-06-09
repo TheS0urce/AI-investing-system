@@ -18,6 +18,7 @@ class MarketSnapshot:
     volume_24h: float
     volatility_30d: float
     timestamp: datetime
+    intraday_change_bps: float = 0.0
 
 
 @dataclass(frozen=True)

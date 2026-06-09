@@ -37,7 +37,7 @@ def base_portfolio() -> PortfolioState:
     )
 
 
-def run_scenario(name: str, volatility_30d: float) -> ScenarioResult:
+def run_scenario(name: str, volatility_30d: float, intraday_change_bps: float = 0.0) -> ScenarioResult:
     system = InvestingSystem(SystemConfig(), SimpleMomentumStrategy())
     market = MarketSnapshot(
         symbol="QQQ",
@@ -46,6 +46,7 @@ def run_scenario(name: str, volatility_30d: float) -> ScenarioResult:
         volume_24h=5_000_000,
         volatility_30d=volatility_30d,
         timestamp=datetime.now(timezone.utc),
+        intraday_change_bps=intraday_change_bps,
     )
     order = system.process_tick(market, base_portfolio())
     latest = system.audit_log[-1]
@@ -62,6 +63,7 @@ def run_scenario(name: str, volatility_30d: float) -> ScenarioResult:
 def build_scenario_report() -> dict[str, object]:
     scenarios = [
         run_scenario("normal_volatility_blocks_on_edge", 0.03),
+        run_scenario("intraday_momentum_reaches_manual_review", 0.03, intraday_change_bps=85.0),
         run_scenario("strong_low_volatility_reaches_manual_review", 0.0001),
         run_scenario("high_volatility_blocks_market", 0.13),
     ]

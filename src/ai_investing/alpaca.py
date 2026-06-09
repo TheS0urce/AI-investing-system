@@ -172,6 +172,7 @@ def market_snapshot_from_alpaca_payload(
     ask = float(decimal_string(latest_quote.get("ap", 0)))
     trade_price = float(decimal_string(latest_trade.get("p", 0)))
     bar_close = float(decimal_string(minute_bar.get("c", 0)))
+    daily_open = float(decimal_string(daily_bar.get("o", 0)))
 
     midpoint = (bid + ask) / 2 if bid > 0 and ask > 0 else 0.0
     price = trade_price or midpoint or bar_close
@@ -180,6 +181,7 @@ def market_snapshot_from_alpaca_payload(
 
     spread_bps = ((ask - bid) / midpoint * 10_000) if bid > 0 and ask > 0 and midpoint > 0 else 0.0
     volume_24h = float(decimal_string(daily_bar.get("v", 0)))
+    intraday_change_bps = ((price - daily_open) / daily_open * 10_000) if daily_open > 0 else 0.0
     timestamp = parse_alpaca_time(latest_trade.get("t") or latest_quote.get("t") or minute_bar.get("t"))
 
     return MarketSnapshot(
@@ -189,6 +191,7 @@ def market_snapshot_from_alpaca_payload(
         volume_24h=volume_24h,
         volatility_30d=default_volatility_30d,
         timestamp=timestamp,
+        intraday_change_bps=intraday_change_bps,
     )
 
 

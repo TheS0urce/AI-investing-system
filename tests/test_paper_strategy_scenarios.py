@@ -19,6 +19,8 @@ def test_strategy_scenarios_show_block_and_manual_review_paths():
     assert report["auto_submit_enabled"] is False
     scenarios = {item["name"]: item for item in report["scenarios"]}
     assert scenarios["normal_volatility_blocks_on_edge"]["audit_details"] == "insufficient_net_edge_after_costs"
+    assert scenarios["intraday_momentum_reaches_manual_review"]["order_created"] is True
+    assert scenarios["intraday_momentum_reaches_manual_review"]["audit_event"] == "manual_review_required"
     assert scenarios["strong_low_volatility_reaches_manual_review"]["order_created"] is True
     assert scenarios["strong_low_volatility_reaches_manual_review"]["audit_event"] == "manual_review_required"
     assert scenarios["high_volatility_blocks_market"]["audit_details"] == "volatility_too_high"

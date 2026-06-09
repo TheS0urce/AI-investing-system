@@ -51,6 +51,32 @@ def test_proposal_blocker_report_identifies_edge_shortfall_after_liquidity_pass(
     assert report["live_trading_approved"] is False
 
 
+def test_proposal_blocker_report_uses_intraday_momentum_when_present():
+    events = [
+        {
+            "at": "2026-06-03T13:30:40+00:00",
+            "watch_status": "EVALUATED",
+            "order_proposal": None,
+            "market": {
+                "symbol": "SPY",
+                "price": 500.0,
+                "spread_bps": 2.0,
+                "volume_24h": 150_000.0,
+                "volatility_30d": 0.03,
+                "intraday_change_bps": 85.0,
+            },
+            "latest_audit": {"details": "manual_review_required"},
+        },
+    ]
+
+    report = paper_proposal_blocker_report.build_proposal_blocker_report(events)
+
+    assert report["liquidity_pass_count"] == 1
+    assert report["edge_values_min"] == 10.818181818181818
+    assert report["edge_shortfall_min"] is None
+    assert report["conclusion"] == "No edge shortfall was observed in this sample; inspect other safety gates before changing strategy parameters."
+
+
 def test_proposal_blocker_markdown_preserves_guardrails():
     report = paper_proposal_blocker_report.build_proposal_blocker_report([])
 

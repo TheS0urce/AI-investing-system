@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.execution import EXPECTED_EDGE_BPS_PER_CONVICTION
+from src.ai_investing.strategy import INTRADAY_BPS_PER_FULL_CONVICTION, MIN_INTRADAY_SIGNAL_BPS
 
 
 @dataclass(frozen=True)
@@ -21,14 +22,16 @@ class StrategyQualityReport:
     default_fee_bps: float
     default_slippage_bps: float
     min_net_edge_bps: float
+    min_intraday_signal_bps: float
+    intraday_bps_per_full_conviction: float
     conclusion: str
 
 
 def build_strategy_quality_report(config: SystemConfig | None = None) -> StrategyQualityReport:
     config = config or SystemConfig()
-    # SimpleMomentumStrategy conviction is maxed when volatility_30d is zero:
-    # conviction = (0.06 - volatility_30d) * 12.
-    max_theoretical_conviction = min(1.0, max(-1.0, 0.06 * 12))
+    # Intraday momentum conviction can reach 1.0 when observed move is large
+    # enough; volatility proxy remains as a fallback for sparse snapshots.
+    max_theoretical_conviction = 1.0
     max_theoretical_edge_bps = EXPECTED_EDGE_BPS_PER_CONVICTION * abs(max_theoretical_conviction)
     required_edge_bps = config.costs.fee_bps + config.costs.slippage_bps + config.costs.min_net_edge_bps
     edge_shortfall_bps = max(0.0, required_edge_bps - max_theoretical_edge_bps)
@@ -47,6 +50,8 @@ def build_strategy_quality_report(config: SystemConfig | None = None) -> Strateg
         default_fee_bps=config.costs.fee_bps,
         default_slippage_bps=config.costs.slippage_bps,
         min_net_edge_bps=config.costs.min_net_edge_bps,
+        min_intraday_signal_bps=MIN_INTRADAY_SIGNAL_BPS,
+        intraday_bps_per_full_conviction=INTRADAY_BPS_PER_FULL_CONVICTION,
         conclusion=conclusion,
     )
 
