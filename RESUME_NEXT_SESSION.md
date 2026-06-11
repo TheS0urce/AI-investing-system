@@ -166,6 +166,8 @@ Operator resume command: **Lets continue.**
 - Latest-session proposal distribution was `23` BUY and `5` SELL. Alpaca documentation confirms fractional orders can start at `$1`, but fractional short sales are not supported.
 - Launch-stage long-only hardening added: `allow_short_sales=false` by default; naked SELL orders and SELL quantities above owned positions are blocked by the safety engine; the manual paper-submit endpoint rejects SELL requests while short sales are disabled.
 - Evidence generated: `PAPER_WATCH_REPORT_2026-06-10.md`, `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-10.md`, and `PAPER_CAPITAL_PROFILE_REPORT_2026-06-10.md`.
+- LaunchAgent `com.aiinvesting.api` was reinstalled after commit `c8af4ce`; the running API now includes the long-only guard and reports `ALPACA-PAPER-READY`.
+- Final long-only market validation automation is ACTIVE for Thursday 2026-06-11 13:30 UTC, which is Friday 2026-06-12 01:30 Pacific/Auckland; the matching summary is ACTIVE for Thursday 2026-06-11 20:10 UTC, which is Friday 2026-06-12 08:10 Pacific/Auckland.
 
 ## Evidence Files
 
