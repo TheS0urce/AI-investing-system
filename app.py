@@ -873,6 +873,8 @@ def broker_paper_submit_order(
         raise HTTPException(status_code=403, detail="live_broker_routing_disabled_for_current_stage")
     if broker.status != "ALPACA-PAPER-READY":
         raise HTTPException(status_code=403, detail=broker.status)
+    if req.side == Side.SELL and not config.risk.allow_short_sales:
+        raise HTTPException(status_code=403, detail="short_sale_disabled_for_current_stage")
 
     order = OrderProposal(
         symbol=req.symbol,

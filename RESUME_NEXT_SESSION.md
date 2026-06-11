@@ -16,7 +16,7 @@ Operator resume command: **Lets continue.**
 - Autonomous execution: `false`
 - Manual approval required: `true`
 - Open paper orders: `[]`
-- Final validation: `./scripts/check.sh` passed with 121 tests
+- Final validation: `./scripts/check.sh` passed with 126 tests
 
 ## Completed Today
 
@@ -162,6 +162,10 @@ Operator resume command: **Lets continue.**
 - Representative sizing blocker identified: the successful overnight run used Alpaca's `$100,000` paper account, so proposal notionals were sized around the paper-account risk budget rather than the intended `$100 USD` live seed capital.
 - Watch launchers now support `--simulated-equity`; next automation is ACTIVE for Wednesday 2026-06-10 13:30 UTC, which is Thursday 2026-06-11 01:30 Pacific/Auckland, and runs `.venv/bin/python scripts/run_market_open_paper_watch.py --symbols SPY,QQQ,AAPL,MSFT,NVDA --feed iex --interval-seconds 60 --iterations 30 --simulated-equity 100`.
 - Matching post-close summary automation is ACTIVE for Wednesday 2026-06-10 20:10 UTC, which is Thursday 2026-06-11 08:10 Pacific/Auckland.
+- Thursday 2026-06-11 review confirmed the `$100` simulated-equity watch succeeded: `150` evaluated ticks produced `28` manual-review proposals, with proposal notionals from `$1.301572` to `$2.00` and expected edge from `9.111003` to `14.0` bps.
+- Latest-session proposal distribution was `23` BUY and `5` SELL. Alpaca documentation confirms fractional orders can start at `$1`, but fractional short sales are not supported.
+- Launch-stage long-only hardening added: `allow_short_sales=false` by default; naked SELL orders and SELL quantities above owned positions are blocked by the safety engine; the manual paper-submit endpoint rejects SELL requests while short sales are disabled.
+- Evidence generated: `PAPER_WATCH_REPORT_2026-06-10.md`, `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-10.md`, and `PAPER_CAPITAL_PROFILE_REPORT_2026-06-10.md`.
 
 ## Evidence Files
 
@@ -240,6 +244,9 @@ Operator resume command: **Lets continue.**
 - `PAPER_STRATEGY_SCENARIO_REPORT_2026-06-09.md`
 - `PAPER_WATCH_QUALITY_REPORT_2026-06-09.md`
 - `PAPER_PROPOSAL_BLOCKER_REPORT_2026-06-09.md`
+- `PAPER_WATCH_REPORT_2026-06-10.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-10.md`
+- `PAPER_CAPITAL_PROFILE_REPORT_2026-06-10.md`
 
 ## First Commands Tomorrow
 

@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 
 class RiskConfig(BaseModel):
     max_order_notional: float = Field(default=2_000.0, gt=0)
+    allow_short_sales: bool = False
     max_symbol_exposure_pct: float = Field(default=0.20, gt=0, le=1)
     max_gross_exposure_pct: float = Field(default=0.90, gt=0, le=1)
     max_drawdown_pct: float = Field(default=0.12, gt=0, le=1)

@@ -104,6 +104,30 @@ def test_paper_submit_uses_paper_adapter_when_confirmed(monkeypatch):
     assert called == {"base_url": "https://paper-api.alpaca.markets", "symbol": "QQQ"}
 
 
+def test_paper_submit_rejects_short_sale_for_current_stage(monkeypatch):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_base_url = "https://paper-api.alpaca.markets"
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+
+    response = client(monkeypatch).post(
+        "/broker/paper/submit_order",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "symbol": "QQQ",
+            "side": "SELL",
+            "quantity": 0.002,
+            "limit_price": 700.0,
+            "confirm": "SUBMIT_PAPER_ORDER",
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "short_sale_disabled_for_current_stage"
+
+
 def test_paper_cancel_requires_confirmation_phrase(monkeypatch):
     response = client(monkeypatch).post(
         "/broker/paper/cancel_orders",

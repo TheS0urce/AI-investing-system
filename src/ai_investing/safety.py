@@ -49,11 +49,25 @@ class SafetyEngine:
         if order_notional > self.config.risk.max_order_notional:
             return SafetyDecision(False, "order_notional_too_large")
 
-        symbol_position = abs(portfolio.positions.get(order.symbol, 0.0)) * order.limit_price
-        if symbol_position + order_notional > portfolio.equity * self.config.risk.max_symbol_exposure_pct:
+        symbol_quantity = portfolio.positions.get(order.symbol, 0.0)
+        if order.side.value == "SELL" and not self.config.risk.allow_short_sales:
+            if symbol_quantity <= 0:
+                return SafetyDecision(False, "short_sale_disabled")
+            if order.quantity > symbol_quantity:
+                return SafetyDecision(False, "sell_quantity_exceeds_position")
+
+        symbol_position = abs(symbol_quantity) * order.limit_price
+        if order.side.value == "SELL":
+            resulting_symbol_exposure = max(0.0, symbol_position - order_notional)
+            resulting_gross_exposure = max(0.0, gross_exposure_notional - order_notional)
+        else:
+            resulting_symbol_exposure = symbol_position + order_notional
+            resulting_gross_exposure = gross_exposure_notional + order_notional
+
+        if resulting_symbol_exposure > portfolio.equity * self.config.risk.max_symbol_exposure_pct:
             return SafetyDecision(False, "symbol_exposure_limit_breached")
 
-        if gross_exposure_notional + order_notional > portfolio.equity * self.config.risk.max_gross_exposure_pct:
+        if resulting_gross_exposure > portfolio.equity * self.config.risk.max_gross_exposure_pct:
             return SafetyDecision(False, "gross_exposure_limit_breached")
 
         return SafetyDecision(True, "ok")

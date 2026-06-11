@@ -68,3 +68,75 @@ def test_order_rejects_when_kill_switch_active():
     decision = safety.review_order(order, base_portfolio(), gross_exposure_notional=0.0)
     assert not decision.approved
     assert decision.reason == "kill_switch_active"
+
+
+def test_order_rejects_naked_sell_when_short_sales_disabled():
+    safety = SafetyEngine(SystemConfig())
+    order = OrderProposal(
+        symbol="QQQ",
+        side=Side.SELL,
+        quantity=0.002,
+        limit_price=700.0,
+        expected_edge_bps=10.0,
+        reason="test",
+    )
+
+    decision = safety.review_order(order, base_portfolio(), gross_exposure_notional=0.0)
+
+    assert not decision.approved
+    assert decision.reason == "short_sale_disabled"
+
+
+def test_order_allows_sell_within_owned_position():
+    safety = SafetyEngine(SystemConfig())
+    portfolio = base_portfolio()
+    portfolio.positions["QQQ"] = 0.01
+    order = OrderProposal(
+        symbol="QQQ",
+        side=Side.SELL,
+        quantity=0.002,
+        limit_price=700.0,
+        expected_edge_bps=10.0,
+        reason="test",
+    )
+
+    decision = safety.review_order(order, portfolio, gross_exposure_notional=7.0)
+
+    assert decision.approved
+
+
+def test_covered_sell_reduces_exposure_instead_of_adding_to_it():
+    safety = SafetyEngine(SystemConfig())
+    portfolio = base_portfolio()
+    portfolio.positions["QQQ"] = 2.0
+    order = OrderProposal(
+        symbol="QQQ",
+        side=Side.SELL,
+        quantity=0.5,
+        limit_price=100.0,
+        expected_edge_bps=10.0,
+        reason="test",
+    )
+
+    decision = safety.review_order(order, portfolio, gross_exposure_notional=200.0)
+
+    assert decision.approved
+
+
+def test_order_rejects_sell_larger_than_owned_position():
+    safety = SafetyEngine(SystemConfig())
+    portfolio = base_portfolio()
+    portfolio.positions["QQQ"] = 0.001
+    order = OrderProposal(
+        symbol="QQQ",
+        side=Side.SELL,
+        quantity=0.002,
+        limit_price=700.0,
+        expected_edge_bps=10.0,
+        reason="test",
+    )
+
+    decision = safety.review_order(order, portfolio, gross_exposure_notional=0.7)
+
+    assert not decision.approved
+    assert decision.reason == "sell_quantity_exceeds_position"
