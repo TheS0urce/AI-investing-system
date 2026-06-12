@@ -14,6 +14,7 @@ from src.ai_investing.preauthorization import (
     authorization_is_active,
     authorize_entry,
     effective_limits,
+    performance_from_state,
     protective_exit_plan,
 )
 
@@ -79,6 +80,7 @@ def test_base_policy_approves_bounded_paper_buy():
 
     assert decision.approved
     assert decision.reason == "preauthorized_paper_entry"
+    assert decision.effective_limits.available_capital_usd == 100.0
     assert decision.effective_limits.max_order_notional_usd == 4.0
     assert decision.effective_limits.max_daily_loss_usd == 2.0
 
@@ -160,12 +162,13 @@ def test_progression_relaxes_opportunity_limits_but_not_loss_ceiling():
             closed_trades=40,
             winning_trades=24,
             realized_pnl_usd=8.0,
-            peak_equity_usd=108.0,
-            current_equity_usd=107.0,
+            peak_equity_usd=208.0,
+            current_equity_usd=207.0,
         )
     )
 
     assert limits.risk_level == 2
+    assert limits.available_capital_usd == 207.0
     assert limits.max_order_notional_usd == 4.8
     assert limits.max_entries_per_session == 4
     assert limits.max_gross_exposure_usd == 9.6
@@ -187,7 +190,57 @@ def test_performance_regression_tightens_limits():
     assert limits.max_order_notional_usd == 3.6
     assert limits.max_entries_per_session == 1
     assert limits.max_gross_exposure_usd == 7.2
-    assert limits.max_daily_loss_usd == 2.0
+    assert limits.max_daily_loss_usd == 1.92
+
+
+def test_capital_decline_tightens_all_money_limits_immediately():
+    limits = effective_limits(PerformanceSnapshot(current_equity_usd=50.0))
+
+    assert limits.available_capital_usd == 50.0
+    assert limits.max_order_notional_usd == 2.0
+    assert limits.max_gross_exposure_usd == 4.0
+    assert limits.max_daily_loss_usd == 1.0
+
+
+def test_capital_growth_requires_performance_before_limits_expand():
+    unproven = effective_limits(PerformanceSnapshot(current_equity_usd=200.0))
+    proven = effective_limits(
+        PerformanceSnapshot(
+            closed_trades=20,
+            winning_trades=12,
+            realized_pnl_usd=5.0,
+            peak_equity_usd=200.0,
+            current_equity_usd=200.0,
+        )
+    )
+
+    assert unproven.max_order_notional_usd == 4.0
+    assert unproven.max_gross_exposure_usd == 8.0
+    assert proven.max_order_notional_usd == 4.4
+    assert proven.max_gross_exposure_usd == 8.8
+    assert proven.max_daily_loss_usd == 2.0
+
+
+def test_low_capital_can_make_fractional_minimum_unavailable():
+    decision = authorize_entry(
+        buy_order(notional=1.0),
+        spread_bps=5.0,
+        state=active_state(current_equity_usd=20.0),
+        context=context(),
+        now=NOW,
+    )
+
+    assert not decision.approved
+    assert decision.reason == "preauthorized_order_limit_exceeded"
+    assert decision.effective_limits.max_order_notional_usd == 0.8
+
+
+def test_invalid_capital_pauses_new_entries():
+    limits = effective_limits(PerformanceSnapshot(current_equity_usd=0.0))
+
+    assert limits.status == "PAUSED"
+    assert limits.reason == "available_capital_invalid"
+    assert limits.max_order_notional_usd == 0.0
 
 
 @pytest.mark.parametrize(
@@ -245,6 +298,9 @@ def test_store_activation_expiry_entry_close_and_revocation(tmp_path):
     assert closed.winning_trades == 1
     assert closed.realized_pnl_usd == 0.25
     assert closed.gross_exposure_usd == 0.0
+    limits = effective_limits(performance_from_state(closed))
+    assert limits.available_capital_usd == 100.25
+    assert limits.max_order_notional_usd == 4.0
 
     revoked = store.revoke(confirmation=PAPER_REVOCATION_CONFIRMATION, now=NOW)
     assert not revoked.active
@@ -282,5 +338,8 @@ def test_policy_starts_with_requested_high_aversion_limits():
     assert policy.max_entries_per_session == 2
     assert policy.max_gross_exposure_usd == 8.0
     assert policy.max_daily_loss_usd == 2.0
+    assert policy.max_order_capital_pct == 0.04
+    assert policy.max_gross_exposure_capital_pct == 0.08
+    assert policy.max_daily_loss_capital_pct == 0.02
     assert policy.stop_loss_pct == 0.015
     assert policy.take_profit_pct == 0.03

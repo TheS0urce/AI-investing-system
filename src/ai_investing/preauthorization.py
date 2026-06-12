@@ -24,6 +24,9 @@ class PreauthorizationPolicy:
     max_entries_per_session: int = 2
     max_gross_exposure_usd: float = 8.0
     max_daily_loss_usd: float = 2.0
+    max_order_capital_pct: float = 0.04
+    max_gross_exposure_capital_pct: float = 0.08
+    max_daily_loss_capital_pct: float = 0.02
     minimum_order_notional_usd: float = 1.0
     minimum_expected_edge_bps: float = 9.0
     max_spread_bps: float = 30.0
@@ -65,6 +68,7 @@ class EffectiveLimits:
     risk_level: int
     status: str
     reason: str
+    available_capital_usd: float
     max_order_notional_usd: float
     max_entries_per_session: int
     max_gross_exposure_usd: float
@@ -137,27 +141,68 @@ def performance_from_state(state: PreauthorizationState) -> PerformanceSnapshot:
 def effective_limits(
     performance: PerformanceSnapshot,
     policy: PreauthorizationPolicy | None = None,
+    available_capital_usd: float | None = None,
 ) -> EffectiveLimits:
     policy = policy or PreauthorizationPolicy()
-    if performance.operational_errors >= policy.pause_operational_errors:
+    capital = performance.current_equity_usd if available_capital_usd is None else available_capital_usd
+    if capital <= 0:
         return EffectiveLimits(
             0,
             "PAUSED",
-            "operational_error_pause",
-            policy.max_order_notional_usd,
-            policy.max_entries_per_session,
-            policy.max_gross_exposure_usd,
-            policy.max_daily_loss_usd,
+            "available_capital_invalid",
+            max(0.0, capital),
+            0.0,
+            0,
+            0.0,
+            0.0,
+        )
+
+    capital_order_cap = capital * policy.max_order_capital_pct
+    capital_exposure_cap = capital * policy.max_gross_exposure_capital_pct
+    capital_loss_cap = capital * policy.max_daily_loss_capital_pct
+
+    def limits_for(
+        *,
+        risk_level: int,
+        status: str,
+        reason: str,
+        scale: float,
+        entries: int,
+    ) -> EffectiveLimits:
+        return EffectiveLimits(
+            risk_level=risk_level,
+            status=status,
+            reason=reason,
+            available_capital_usd=round(capital, 2),
+            max_order_notional_usd=round(
+                min(policy.max_order_notional_usd * scale, capital_order_cap),
+                2,
+            ),
+            max_entries_per_session=entries,
+            max_gross_exposure_usd=round(
+                min(policy.max_gross_exposure_usd * scale, capital_exposure_cap),
+                2,
+            ),
+            # Capital declines tighten this ceiling; growth never expands it above
+            # the manually governed dollar cap.
+            max_daily_loss_usd=round(min(policy.max_daily_loss_usd, capital_loss_cap), 2),
+        )
+
+    if performance.operational_errors >= policy.pause_operational_errors:
+        return limits_for(
+            risk_level=0,
+            status="PAUSED",
+            reason="operational_error_pause",
+            scale=1.0,
+            entries=policy.max_entries_per_session,
         )
     if performance.consecutive_losses >= policy.pause_consecutive_losses:
-        return EffectiveLimits(
-            0,
-            "PAUSED",
-            "consecutive_loss_pause",
-            policy.max_order_notional_usd,
-            policy.max_entries_per_session,
-            policy.max_gross_exposure_usd,
-            policy.max_daily_loss_usd,
+        return limits_for(
+            risk_level=0,
+            status="PAUSED",
+            reason="consecutive_loss_pause",
+            scale=1.0,
+            entries=policy.max_entries_per_session,
         )
 
     completed_windows = performance.closed_trades // policy.progression_trade_window
@@ -181,18 +226,15 @@ def effective_limits(
     status = "TIGHTENED" if regression else "ACTIVE"
     reason = "performance_regression" if regression else "within_governed_envelope"
 
-    return EffectiveLimits(
+    return limits_for(
         risk_level=risk_level,
         status=status,
         reason=reason,
-        max_order_notional_usd=round(policy.max_order_notional_usd * scale, 2),
-        max_entries_per_session=max(
+        scale=scale,
+        entries=max(
             1,
             policy.max_entries_per_session + risk_level - (1 if regression else 0),
         ),
-        max_gross_exposure_usd=round(policy.max_gross_exposure_usd * scale, 2),
-        # The loss ceiling never relaxes automatically.
-        max_daily_loss_usd=policy.max_daily_loss_usd,
     )
 
 

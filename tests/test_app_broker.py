@@ -140,7 +140,9 @@ def test_preauthorization_status_is_inactive_by_default(monkeypatch, tmp_path):
     assert response.status_code == 200
     assert response.json()["status"] == "INACTIVE"
     assert response.json()["paper_only"] is True
+    assert response.json()["capital_source"] == "preauthorization_state.current_equity_usd"
     assert response.json()["policy"]["max_order_notional_usd"] == 4.0
+    assert response.json()["effective_limits"]["available_capital_usd"] == 100.0
     assert response.json()["effective_limits"]["max_daily_loss_usd"] == 2.0
 
 

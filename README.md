@@ -100,7 +100,13 @@ Initial envelope:
 - 72-hour expiring authorization lease
 - Long-only fractional entries in `SPY`, `QQQ`, `AAPL`, `MSFT`, and `NVDA`
 - Maximum `$4` per entry, two entries per session, and `$8` gross exposure
-- Hard `$2` daily realized-loss ceiling that never relaxes automatically
+- Hard `$2` daily realized-loss ceiling that never expands above `$2` automatically
+- Capital-aware limits: 4% per entry, 8% gross exposure, and 2% daily loss
+- Effective limits use the lower of the capital percentage and governed dollar cap
+- Capital growth expands limits only after qualified 20-trade performance windows
+- Capital declines tighten limits immediately, including the daily-loss ceiling
+- The capital basis is the preauthorization ledger's current equity, updated from realized
+  closed trades; Alpaca paper-account buying power is intentionally not used for sizing
 - Minimum 9 bps expected edge and maximum 30 bps spread
 - Attached 1.5% stop-loss and 3% take-profit bracket legs
 - Automatic pause after three consecutive losses or one operational error

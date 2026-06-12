@@ -212,6 +212,7 @@ def preauthorization_status_payload() -> dict[str, object]:
         "status": "ACTIVE" if authorization_is_active(state) else "INACTIVE",
         "paper_only": True,
         "live_routing_enabled": False,
+        "capital_source": "preauthorization_state.current_equity_usd",
         "authorization": asdict(state),
         "policy": asdict(preauthorization_policy),
         "effective_limits": asdict(limits),
