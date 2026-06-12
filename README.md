@@ -78,6 +78,7 @@ Useful local commands:
 .venv/bin/python scripts/paper_market_open_preflight.py
 .venv/bin/python scripts/paper_next_action.py
 .venv/bin/python scripts/scaling_policy_report.py
+.venv/bin/python scripts/paper_preauthorization_replay_report.py
 .venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
 ```
 
