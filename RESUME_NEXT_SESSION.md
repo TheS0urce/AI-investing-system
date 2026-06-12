@@ -168,6 +168,10 @@ Operator resume command: **Lets continue.**
 - Evidence generated: `PAPER_WATCH_REPORT_2026-06-10.md`, `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-10.md`, and `PAPER_CAPITAL_PROFILE_REPORT_2026-06-10.md`.
 - LaunchAgent `com.aiinvesting.api` was reinstalled after commit `c8af4ce`; the running API now includes the long-only guard and reports `ALPACA-PAPER-READY`.
 - Final long-only market validation automation is ACTIVE for Thursday 2026-06-11 13:30 UTC, which is Friday 2026-06-12 01:30 Pacific/Auckland; the matching summary is ACTIVE for Thursday 2026-06-11 20:10 UTC, which is Friday 2026-06-12 08:10 Pacific/Auckland.
+- Friday 2026-06-12 review found the unattended watch was safe but partial: `35` ticks (`7` of `30` cycles) completed before the automation runtime window ended. The partial sample had no proposals because opening liquidity and spreads blocked signals first.
+- Full deterministic replay of all `150` ticks from the proposal-bearing `2026-06-10` `$100` session through current long-only code produced `23` BUY manual-review proposals, `0` SELL proposals, and `5` `short_sale_disabled` blocks. Evidence: `PAPER_LONG_ONLY_REPLAY_REPORT_2026-06-12.md`.
+- Current readiness remains `PAPER-GO` with `11/11` checks passing and open paper orders `0`.
+- Corrected final unattended watch is ACTIVE for Friday 2026-06-12 13:45 UTC, which is Saturday 2026-06-13 01:45 Pacific/Auckland. It starts 15 minutes after the U.S. open and runs `15` cycles at `10`-second intervals to finish within the job window. Matching summary is scheduled for Saturday 2026-06-13 08:10 Pacific/Auckland.
 
 ## Evidence Files
 
@@ -249,6 +253,8 @@ Operator resume command: **Lets continue.**
 - `PAPER_WATCH_REPORT_2026-06-10.md`
 - `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-10.md`
 - `PAPER_CAPITAL_PROFILE_REPORT_2026-06-10.md`
+- `POST_MARKET_CLOSE_PAPER_SUMMARY_2026-06-11.md`
+- `PAPER_LONG_ONLY_REPLAY_REPORT_2026-06-12.md`
 
 ## First Commands Tomorrow
 
