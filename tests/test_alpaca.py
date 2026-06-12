@@ -4,6 +4,7 @@ from src.ai_investing.alpaca import (
     AlpacaMarketDataCredentials,
     AlpacaPaperCredentials,
     account_summary_from_payload,
+    alpaca_bracket_order_payload,
     alpaca_order_payload,
     decimal_string,
     ensure_market_data_credentials,
@@ -73,6 +74,26 @@ def test_alpaca_order_payload_rejects_invalid_order_values():
     order = OrderProposal("QQQ", Side.BUY, 0.0, 430.0, 10.0, "test")
     with pytest.raises(ValueError, match="order_quantity_must_be_positive"):
         alpaca_order_payload(order)
+
+
+def test_alpaca_bracket_order_payload_attaches_bounded_exits():
+    order = OrderProposal("QQQ", Side.BUY, 0.01, 430.0, 12.0, "test")
+    payload = alpaca_bracket_order_payload(order, stop_price=423.55, take_profit_price=442.9)
+
+    assert payload["order_class"] == "bracket"
+    assert payload["take_profit"] == {"limit_price": "442.90"}
+    assert payload["stop_loss"] == {"stop_price": "423.55"}
+    assert payload["extended_hours"] is False
+
+
+def test_alpaca_bracket_order_payload_rejects_unbounded_or_sell_entry():
+    sell = OrderProposal("QQQ", Side.SELL, 0.01, 430.0, 12.0, "test")
+    with pytest.raises(ValueError, match="bracket_entry_must_be_buy"):
+        alpaca_bracket_order_payload(sell, stop_price=423.55, take_profit_price=442.9)
+
+    buy = OrderProposal("QQQ", Side.BUY, 0.01, 430.0, 12.0, "test")
+    with pytest.raises(ValueError, match="bracket_exit_prices_must_bound_entry"):
+        alpaca_bracket_order_payload(buy, stop_price=431.0, take_profit_price=442.9)
 
 
 def test_ensure_paper_credentials_blocks_live_url():

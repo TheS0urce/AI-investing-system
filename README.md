@@ -19,6 +19,7 @@ This repository contains a **self-built AI investing system** designed for retai
 - `src/ai_investing/execution.py`: Execution planner with slippage/fee-aware sizing.
 - `src/ai_investing/system.py`: End-to-end orchestrator with audit logs and fail-closed behavior.
 - `src/ai_investing/alpaca.py`: Alpaca paper-only adapter and read-only market/account helpers.
+- `src/ai_investing/preauthorization.py`: Expiring paper authorization, bounded risk, and performance progression.
 - `examples/run_demo.py`: Demo flow with simulated market data and dry-run execution.
 - `dashboard.py`: Local Streamlit operator dashboard.
 
@@ -65,6 +66,7 @@ The current deployment stage is **Alpaca paper trading only**:
 - Autonomous execution: disabled
 - Manual approval: required
 - Paper order submit/cancel: guarded by exact confirmation phrases
+- Optional bounded paper preauthorization: inactive until explicitly activated
 - Market-open watch mode: read-only by default
 - Market-open watch launcher requires full `PAPER-MARKET-OPEN-GO` preflight before running
 
@@ -86,6 +88,36 @@ Clickable Mac launchers are installed in:
 ```
 
 The current launcher set includes Start API, Health, Dashboard, Daily Ops, Market Preflight, Next Action, and Stop API.
+
+### Bounded paper preauthorization
+
+The preauthorization mechanism is paper-only and remains inactive by default. It does not enable
+live routing or alter the existing manual order endpoint.
+
+Initial envelope:
+
+- 72-hour expiring authorization lease
+- Long-only fractional entries in `SPY`, `QQQ`, `AAPL`, `MSFT`, and `NVDA`
+- Maximum `$4` per entry, two entries per session, and `$8` gross exposure
+- Hard `$2` daily realized-loss ceiling that never relaxes automatically
+- Minimum 9 bps expected edge and maximum 30 bps spread
+- Attached 1.5% stop-loss and 3% take-profit bracket legs
+- Automatic pause after three consecutive losses or one operational error
+- 10% sizing progression after each qualified 20-trade window, capped at three steps
+
+The status, activation, revocation, and bounded-submit routes are:
+
+```text
+GET  /broker/paper/preauthorization
+POST /broker/paper/preauthorization/activate
+POST /broker/paper/preauthorization/revoke
+POST /broker/paper/preauthorization/submit
+```
+
+Activation requires `AUTHORIZE_BOUNDED_PAPER`; revocation requires
+`REVOKE_BOUNDED_PAPER`. Broker or state errors fail closed and revoke active execution.
+The fractional bracket combination must be verified in Alpaca paper trading before this route is
+used unattended; a broker rejection is treated as an operational pause.
 
 ## Important
 

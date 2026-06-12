@@ -20,17 +20,29 @@ from src.ai_investing.alpaca import (
     AlpacaAccountSummary,
     AlpacaMarketDataCredentials,
     AlpacaPaperCredentials,
+    alpaca_bracket_order_payload,
     alpaca_order_payload,
     cancel_paper_orders,
     fetch_paper_account,
     fetch_paper_clock,
     fetch_stock_snapshot,
     fetch_paper_orders,
+    submit_paper_bracket_order,
     submit_paper_order,
 )
 from src.ai_investing.broker import broker_readiness
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioState, Side
+from src.ai_investing.preauthorization import (
+    AuthorizationContext,
+    PreauthorizationPolicy,
+    PreauthorizationStore,
+    authorization_is_active,
+    authorize_entry,
+    effective_limits,
+    performance_from_state,
+    protective_exit_plan,
+)
 from src.ai_investing.strategy import SimpleMomentumStrategy
 from src.ai_investing.system import InvestingSystem
 from scripts.paper_go_no_go_checklist import checklist_items
@@ -46,6 +58,9 @@ app = FastAPI(title="AI Investing System", version="0.2.1")
 
 DEFAULT_RATE = os.getenv("AI_RATE_LIMIT_PER_MINUTE", "60")
 WATCH_HISTORY_PATH = Path(os.getenv("AI_WATCH_HISTORY_PATH", "logs/paper_watch_history.jsonl"))
+PREAUTHORIZATION_STATE_PATH = Path(
+    os.getenv("AI_PAPER_PREAUTHORIZATION_PATH", "state/paper_preauthorization.json")
+)
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[f"{DEFAULT_RATE}/minute"])
 app.state.limiter = limiter
@@ -71,6 +86,8 @@ config = SystemConfig(
 )
 strategy = SimpleMomentumStrategy()
 system = InvestingSystem(config=config, strategy=strategy)
+preauthorization_policy = PreauthorizationPolicy()
+preauthorization_store = PreauthorizationStore(PREAUTHORIZATION_STATE_PATH)
 
 
 class TickRequest(BaseModel):
@@ -121,6 +138,14 @@ class PaperWatchTickRequest(BaseModel):
     peak_equity: float = 1_000.0
     daily_pnl: float = 0.0
     consecutive_losses: int = 0
+
+
+class PaperPreauthorizationRequest(BaseModel):
+    confirm: str
+
+
+class PaperPreauthorizedOrderRequest(PaperOrderPreviewRequest):
+    spread_bps: float = Field(ge=0)
 
 
 def serialize_market(market: MarketSnapshot):
@@ -177,6 +202,19 @@ def serialize_paper_clock(clock):
         "is_open": clock.is_open,
         "next_open": clock.next_open,
         "next_close": clock.next_close,
+    }
+
+
+def preauthorization_status_payload() -> dict[str, object]:
+    state = preauthorization_store.load()
+    limits = effective_limits(performance_from_state(state), preauthorization_policy)
+    return {
+        "status": "ACTIVE" if authorization_is_active(state) else "INACTIVE",
+        "paper_only": True,
+        "live_routing_enabled": False,
+        "authorization": asdict(state),
+        "policy": asdict(preauthorization_policy),
+        "effective_limits": asdict(limits),
     }
 
 
@@ -898,6 +936,144 @@ def broker_paper_submit_order(
         "symbol": result.symbol,
         "side": result.side,
         "submitted_at": result.submitted_at,
+    }
+
+
+@app.get("/broker/paper/preauthorization")
+def broker_paper_preauthorization_status(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return preauthorization_status_payload()
+
+
+@app.post("/broker/paper/preauthorization/activate")
+def broker_paper_preauthorization_activate(
+    req: PaperPreauthorizationRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.live_enabled or config.broker.mode != "paper":
+        raise HTTPException(status_code=403, detail="paper_only_guard_failed")
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+    try:
+        preauthorization_store.activate(
+            confirmation=req.confirm,
+            policy=preauthorization_policy,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    system._audit("paper_preauthorization_activated", "WARN", "bounded 72-hour paper lease")
+    return preauthorization_status_payload()
+
+
+@app.post("/broker/paper/preauthorization/revoke")
+def broker_paper_preauthorization_revoke(
+    req: PaperPreauthorizationRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    try:
+        preauthorization_store.revoke(confirmation=req.confirm)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    system._audit("paper_preauthorization_revoked", "WARN", "bounded paper lease revoked")
+    return preauthorization_status_payload()
+
+
+@app.post("/broker/paper/preauthorization/submit")
+@limiter.limit("5/minute")
+def broker_paper_preauthorized_submit(
+    request: Request,
+    req: PaperPreauthorizedOrderRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.live_enabled or config.broker.mode != "paper":
+        raise HTTPException(status_code=403, detail="paper_only_guard_failed")
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+
+    try:
+        clock = fetch_paper_clock(alpaca_paper_credentials())
+        open_orders = fetch_paper_orders(alpaca_paper_credentials(), status="open", limit=100)
+    except (RuntimeError, ValueError) as exc:
+        preauthorization_store.record_operational_error(str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    order = OrderProposal(
+        symbol=req.symbol.upper(),
+        side=req.side,
+        quantity=req.quantity,
+        limit_price=req.limit_price,
+        expected_edge_bps=req.expected_edge_bps,
+        reason=req.reason,
+    )
+    state = preauthorization_store.load()
+    session_date = clock.timestamp[:10]
+    decision = authorize_entry(
+        order,
+        spread_bps=req.spread_bps,
+        state=state,
+        context=AuthorizationContext(
+            broker_mode=config.broker.mode,
+            live_enabled=broker.live_enabled,
+            market_is_open=clock.is_open,
+            session_date=session_date,
+            gross_exposure_usd=state.gross_exposure_usd,
+            daily_realized_pnl_usd=state.daily_realized_pnl_usd,
+            open_order_symbols=tuple(item.symbol.upper() for item in open_orders),
+        ),
+        policy=preauthorization_policy,
+    )
+    if not decision.approved:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "reason": decision.reason,
+                "effective_limits": asdict(decision.effective_limits),
+            },
+        )
+
+    exits = protective_exit_plan(
+        symbol=order.symbol,
+        quantity=order.quantity,
+        entry_price=order.limit_price,
+        policy=preauthorization_policy,
+    )
+    try:
+        result = submit_paper_bracket_order(
+            alpaca_paper_credentials(),
+            order,
+            stop_price=exits.stop_price,
+            take_profit_price=exits.take_profit_price,
+        )
+    except (RuntimeError, ValueError) as exc:
+        preauthorization_store.record_operational_error(str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    preauthorization_store.record_entry(
+        session_date=session_date,
+        order_notional_usd=order.quantity * order.limit_price,
+        symbol=order.symbol,
+    )
+    system._audit(
+        "preauthorized_paper_bracket_submitted",
+        "WARN",
+        f"{result.side} {result.symbol} status={result.status}",
+    )
+    return {
+        "submitted": True,
+        "authorization_reason": decision.reason,
+        "effective_limits": asdict(decision.effective_limits),
+        "broker_order": serialize_paper_order_result(result),
+        "protective_exit": asdict(exits),
+        "broker_payload": alpaca_bracket_order_payload(
+            order,
+            stop_price=exits.stop_price,
+            take_profit_price=exits.take_profit_price,
+        ),
     }
 
 

@@ -10,6 +10,7 @@ __pycache__/
 # IDE
 .idea/
 logs/
+state/
 .env
 .venv/
 scripts/macos_apps/icons/

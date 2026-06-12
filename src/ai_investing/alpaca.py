@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 import json
 import ssl
 
-from .models import MarketSnapshot, OrderProposal
+from .models import MarketSnapshot, OrderProposal, Side
 
 try:
     import certifi
@@ -122,6 +122,27 @@ def alpaca_order_payload(order: OrderProposal) -> dict[str, str | bool]:
         "time_in_force": "day",
         "limit_price": f"{order.limit_price:.2f}",
         "extended_hours": False,
+    }
+
+
+def alpaca_bracket_order_payload(
+    order: OrderProposal,
+    *,
+    stop_price: float,
+    take_profit_price: float,
+) -> dict[str, Any]:
+    if order.side != Side.BUY:
+        raise ValueError("bracket_entry_must_be_buy")
+    if stop_price <= 0 or take_profit_price <= 0:
+        raise ValueError("bracket_exit_prices_must_be_positive")
+    if not stop_price < order.limit_price < take_profit_price:
+        raise ValueError("bracket_exit_prices_must_bound_entry")
+
+    return {
+        **alpaca_order_payload(order),
+        "order_class": "bracket",
+        "take_profit": {"limit_price": f"{take_profit_price:.2f}"},
+        "stop_loss": {"stop_price": f"{stop_price:.2f}"},
     }
 
 
@@ -363,6 +384,45 @@ def submit_paper_order(
     request = Request(
         f"{credentials.base_url.rstrip('/')}/v2/orders",
         data=json.dumps(alpaca_order_payload(order)).encode("utf-8"),
+        headers={
+            "APCA-API-KEY-ID": credentials.api_key,
+            "APCA-API-SECRET-KEY": credentials.secret_key,
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    context = ssl.create_default_context(cafile=certifi.where()) if certifi else ssl.create_default_context()
+    try:
+        with urlopen(request, timeout=timeout, context=context) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise RuntimeError(f"alpaca_order_http_error:{exc.code}:{http_error_body(exc)}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"alpaca_order_network_error:{exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("alpaca_order_invalid_json") from exc
+
+    return paper_order_result_from_payload(payload)
+
+
+def submit_paper_bracket_order(
+    credentials: AlpacaPaperCredentials,
+    order: OrderProposal,
+    *,
+    stop_price: float,
+    take_profit_price: float,
+    timeout: float = 10.0,
+) -> AlpacaPaperOrderResult:
+    ensure_paper_credentials(credentials)
+    request = Request(
+        f"{credentials.base_url.rstrip('/')}/v2/orders",
+        data=json.dumps(
+            alpaca_bracket_order_payload(
+                order,
+                stop_price=stop_price,
+                take_profit_price=take_profit_price,
+            )
+        ).encode("utf-8"),
         headers={
             "APCA-API-KEY-ID": credentials.api_key,
             "APCA-API-SECRET-KEY": credentials.secret_key,

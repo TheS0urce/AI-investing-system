@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from fastapi.testclient import TestClient
 
 import app
+from src.ai_investing.preauthorization import PreauthorizationStore
 
 
 @dataclass(frozen=True)
@@ -126,6 +127,113 @@ def test_paper_submit_rejects_short_sale_for_current_stage(monkeypatch):
 
     assert response.status_code == 403
     assert response.json()["detail"] == "short_sale_disabled_for_current_stage"
+
+
+def test_preauthorization_status_is_inactive_by_default(monkeypatch, tmp_path):
+    monkeypatch.setattr(app, "preauthorization_store", PreauthorizationStore(tmp_path / "preauth.json"))
+
+    response = client(monkeypatch).get(
+        "/broker/paper/preauthorization",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "INACTIVE"
+    assert response.json()["paper_only"] is True
+    assert response.json()["policy"]["max_order_notional_usd"] == 4.0
+    assert response.json()["effective_limits"]["max_daily_loss_usd"] == 2.0
+
+
+def test_preauthorization_activation_requires_exact_phrase(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    monkeypatch.setattr(app, "preauthorization_store", PreauthorizationStore(tmp_path / "preauth.json"))
+
+    response = client(monkeypatch).post(
+        "/broker/paper/preauthorization/activate",
+        headers={"X-API-Key": "test-key"},
+        json={"confirm": "NO"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "preauthorization_confirmation_required"
+
+
+def test_preauthorized_submit_cannot_reach_broker_while_inactive(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    monkeypatch.setattr(app, "preauthorization_store", PreauthorizationStore(tmp_path / "preauth.json"))
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock())
+    monkeypatch.setattr(app, "fetch_paper_orders", lambda credentials, status, limit: [])
+
+    def fail_submit(*args, **kwargs):
+        raise AssertionError("inactive authorization reached broker")
+
+    monkeypatch.setattr(app, "submit_paper_bracket_order", fail_submit)
+    response = client(monkeypatch).post(
+        "/broker/paper/preauthorization/submit",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "symbol": "QQQ",
+            "side": "BUY",
+            "quantity": 0.005,
+            "limit_price": 430.0,
+            "expected_edge_bps": 12.0,
+            "spread_bps": 5.0,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "authorization_inactive_or_expired"
+
+
+def test_active_preauthorization_submits_bounded_paper_bracket(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    store = PreauthorizationStore(tmp_path / "preauth.json")
+    store.activate(confirmation="AUTHORIZE_BOUNDED_PAPER")
+    monkeypatch.setattr(app, "preauthorization_store", store)
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock())
+    monkeypatch.setattr(app, "fetch_paper_orders", lambda credentials, status, limit: [])
+
+    called = {}
+
+    def fake_submit(credentials, order, *, stop_price, take_profit_price):
+        called.update(
+            symbol=order.symbol,
+            stop_price=stop_price,
+            take_profit_price=take_profit_price,
+        )
+        return FakeOrderResult()
+
+    monkeypatch.setattr(app, "submit_paper_bracket_order", fake_submit)
+    response = client(monkeypatch).post(
+        "/broker/paper/preauthorization/submit",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "symbol": "QQQ",
+            "side": "BUY",
+            "quantity": 0.005,
+            "limit_price": 430.0,
+            "expected_edge_bps": 12.0,
+            "spread_bps": 5.0,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["submitted"] is True
+    assert response.json()["broker_payload"]["order_class"] == "bracket"
+    assert called == {"symbol": "QQQ", "stop_price": 423.55, "take_profit_price": 442.9}
+    assert store.load().entries_this_session == 1
 
 
 def test_paper_cancel_requires_confirmation_phrase(monkeypatch):
