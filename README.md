@@ -80,6 +80,7 @@ Useful local commands:
 .venv/bin/python scripts/scaling_policy_report.py
 .venv/bin/python scripts/paper_preauthorization_replay_report.py
 .venv/bin/python scripts/run_market_open_paper_watch.py --symbol QQQ --feed iex --interval-seconds 60 --iterations 30
+./scripts/install_market_open_watch_agent.sh
 ```
 
 Clickable Mac launchers are installed in:
@@ -89,6 +90,11 @@ Clickable Mac launchers are installed in:
 ```
 
 The current launcher set includes Start API, Health, Dashboard, Daily Ops, Market Preflight, Next Action, and Stop API.
+
+For unattended market-open validation, install the local watch LaunchAgent with
+`./scripts/install_market_open_watch_agent.sh`. It checks the paper clock every five
+minutes, waits until at least 9:45 a.m. New York time, and runs the focused read-only
+watch once per U.S. session. It does not activate preauthorization or submit orders.
 
 ### Bounded paper preauthorization
 

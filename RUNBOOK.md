@@ -328,6 +328,22 @@ curl -s "http://127.0.0.1:8001/broker/paper/watch_history?limit=5" \
 
 Watch mode records what the strategy would have done during market hours. If the Alpaca paper clock says the market is closed, watch mode records `SKIPPED_MARKET_CLOSED` by default instead of evaluating the strategy. Use `--allow-closed-market` only for explicit diagnostics.
 Prefer `run_market_open_paper_watch.py` for real paper sessions; it checks the session plan first and exits with `PAPER-WATCH-NO-GO` when the paper market is closed.
+
+For unattended market-open validation, prefer the local macOS LaunchAgent rather than
+Codex automations, because the automation sandbox may not be allowed to reach
+`127.0.0.1`.
+
+```bash
+./scripts/install_market_open_watch_agent.sh
+launchctl list | grep com.aiinvesting.market-open-watch
+tail -f logs/market_open_watch_agent.log
+```
+
+The agent runs `scripts/run_scheduled_market_open_watch.py` every five minutes. It
+uses the local API paper clock, waits until at least 9:45 a.m. New York time, runs
+the focused read-only watch once per U.S. session, and records completion in
+`state/market_open_watch_agent.json`. It does not activate preauthorization or submit
+orders.
 Watch mode does not submit orders.
 History is persisted locally to `logs/paper_watch_history.jsonl`, which is gitignored runtime data.
 Export watch history for review:
