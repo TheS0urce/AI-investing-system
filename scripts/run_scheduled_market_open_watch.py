@@ -95,6 +95,14 @@ def run_watch_command(args: argparse.Namespace) -> subprocess.CompletedProcess[s
         "--simulated-equity",
         str(args.simulated_equity),
     ]
+    if args.preauthorized_submit:
+        command.extend(
+            [
+                "--preauthorized-submit",
+                "--max-preauthorized-submits",
+                str(args.max_preauthorized_submits),
+            ]
+        )
     return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
 
 
@@ -109,6 +117,8 @@ def main() -> int:
     parser.add_argument("--log-path", type=Path, default=DEFAULT_LOG_PATH)
     parser.add_argument("--run-after-hour", type=int, default=9)
     parser.add_argument("--run-after-minute", type=int, default=45)
+    parser.add_argument("--preauthorized-submit", action="store_true")
+    parser.add_argument("--max-preauthorized-submits", type=int, default=2)
     args = parser.parse_args()
 
     load_dotenv(ROOT / ".env")

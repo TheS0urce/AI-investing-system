@@ -96,6 +96,17 @@ For unattended market-open validation, install the local watch LaunchAgent with
 minutes, waits until at least 9:45 a.m. New York time, and runs the focused read-only
 watch once per U.S. session. It does not activate preauthorization or submit orders.
 
+The watch runner also has an explicit paper-only submit bridge for the bounded
+preauthorization endpoint:
+
+```bash
+.venv/bin/python scripts/run_market_open_paper_watch.py --preauthorized-submit
+```
+
+This mode remains off by default. It only attempts paper bracket submission when a
+watch tick produces an `order_proposal`, and the API still requires an active
+bounded paper authorization lease plus all paper-only broker guards.
+
 ### Bounded paper preauthorization
 
 The preauthorization mechanism is paper-only and remains inactive by default. It does not enable

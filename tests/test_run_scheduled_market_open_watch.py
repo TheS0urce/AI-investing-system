@@ -1,4 +1,5 @@
 import importlib.util
+import argparse
 import sys
 from pathlib import Path
 
@@ -62,3 +63,33 @@ def test_schedule_decision_rejects_invalid_timestamp():
 
     assert decision.should_run is False
     assert decision.reason == "invalid_clock_timestamp"
+
+
+def test_run_watch_command_includes_preauthorized_submit_flags(monkeypatch):
+    captured = {}
+
+    def fake_run(command, cwd, text, capture_output, check):
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["text"] = text
+        captured["capture_output"] = capture_output
+        captured["check"] = check
+        return "completed"
+
+    monkeypatch.setattr(scheduled.subprocess, "run", fake_run)
+
+    result = scheduled.run_watch_command(
+        argparse.Namespace(
+            symbols="QQQ,NVDA",
+            feed="iex",
+            interval_seconds=10,
+            iterations=30,
+            simulated_equity=100,
+            preauthorized_submit=True,
+            max_preauthorized_submits=2,
+        )
+    )
+
+    assert result == "completed"
+    assert "--preauthorized-submit" in captured["command"]
+    assert captured["command"][-2:] == ["--max-preauthorized-submits", "2"]

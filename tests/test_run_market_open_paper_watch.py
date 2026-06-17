@@ -1,5 +1,7 @@
 import importlib.util
+import io
 import sys
+import urllib.error
 from pathlib import Path
 
 
@@ -231,6 +233,95 @@ def test_guarded_watch_passes_simulated_capital_to_ticks(capsys):
     output = capsys.readouterr().out
     assert '"use_paper_account": false' in output
     assert '"simulated_equity": 100.0' in output
+
+
+def test_guarded_watch_can_submit_preauthorized_proposal(capsys):
+    submits = []
+
+    def fake_post_tick(*args):
+        return {
+            "watch_status": "EVALUATED",
+            "market": {"spread_bps": 1.5},
+            "order_proposal": {
+                "symbol": "QQQ",
+                "side": "buy",
+                "quantity": 0.002,
+                "limit_price": 500.0,
+                "expected_edge_bps": 12.0,
+                "reason": "test",
+            },
+        }
+
+    def fake_submit(api_base, api_key, event):
+        submits.append((api_base, api_key, event["order_proposal"]["symbol"]))
+        return {"submitted": True, "broker_order": {"symbol": "QQQ"}}
+
+    result = run_market_open_paper_watch.run_guarded_watch(
+        api_base="http://127.0.0.1:8001",
+        api_key="test-key",
+        symbol="QQQ",
+        feed="iex",
+        interval_seconds=60,
+        iterations=1,
+        preflight={"status": "PAPER-MARKET-OPEN-GO", "market_is_open": True},
+        post_tick=fake_post_tick,
+        submit_preauthorized=fake_submit,
+        enable_preauthorized_submit=True,
+    )
+
+    assert result == 0
+    assert submits == [("http://127.0.0.1:8001", "test-key", "QQQ")]
+    output = capsys.readouterr().out
+    assert "PREAUTHORIZED-SUBMIT-OK" in output
+
+
+def test_guarded_watch_stops_preauthorized_submits_after_block(capsys):
+    submit_calls = 0
+
+    def fake_post_tick(*args):
+        return {
+            "watch_status": "EVALUATED",
+            "market": {"spread_bps": 1.5},
+            "order_proposal": {
+                "symbol": "QQQ",
+                "side": "buy",
+                "quantity": 0.002,
+                "limit_price": 500.0,
+                "expected_edge_bps": 12.0,
+                "reason": "test",
+            },
+        }
+
+    def fake_submit(*args):
+        nonlocal submit_calls
+        submit_calls += 1
+        raise urllib.error.HTTPError(
+            url="http://127.0.0.1:8001/broker/paper/preauthorization/submit",
+            code=403,
+            msg="Forbidden",
+            hdrs={},
+            fp=io.BytesIO(b'{"detail":{"reason":"authorization_inactive_or_expired"}}'),
+        )
+
+    result = run_market_open_paper_watch.run_guarded_watch(
+        api_base="http://127.0.0.1:8001",
+        api_key="test-key",
+        symbol="QQQ",
+        feed="iex",
+        interval_seconds=60,
+        iterations=2,
+        preflight={"status": "PAPER-MARKET-OPEN-GO", "market_is_open": True},
+        post_tick=fake_post_tick,
+        submit_preauthorized=fake_submit,
+        enable_preauthorized_submit=True,
+        sleep=lambda seconds: None,
+    )
+
+    assert result == 0
+    assert submit_calls == 1
+    output = capsys.readouterr().out
+    assert "PREAUTHORIZED-SUBMIT-BLOCKED" in output
+    assert "authorization_inactive_or_expired" in output
 
 
 def test_parse_symbols_deduplicates_and_normalizes():

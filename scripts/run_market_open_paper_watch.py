@@ -48,6 +48,40 @@ def fetch_market_open_preflight(api_base: str, api_key: str) -> dict[str, object
         return json.loads(response.read().decode("utf-8"))
 
 
+def submit_preauthorized_order(
+    api_base: str,
+    api_key: str,
+    event: dict[str, object],
+) -> dict[str, object]:
+    proposal = event.get("order_proposal")
+    market = event.get("market")
+    if not isinstance(proposal, dict) or not isinstance(market, dict):
+        return {"submitted": False, "reason": "order_proposal_missing"}
+
+    body = json.dumps(
+        {
+            "symbol": proposal.get("symbol"),
+            "side": proposal.get("side"),
+            "quantity": proposal.get("quantity"),
+            "limit_price": proposal.get("limit_price"),
+            "expected_edge_bps": proposal.get("expected_edge_bps"),
+            "reason": proposal.get("reason"),
+            "spread_bps": market.get("spread_bps"),
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        f"{api_base.rstrip('/')}/broker/paper/preauthorization/submit",
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-API-Key": api_key,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
 def wait_for_market_open_preflight(
     *,
     api_base: str,
@@ -85,6 +119,9 @@ def run_guarded_watch(
     daily_pnl: float = 0.0,
     consecutive_losses: int = 0,
     post_tick: Callable[..., dict[str, object]] = post_watch_tick,
+    submit_preauthorized: Callable[[str, str, dict[str, object]], dict[str, object]] = submit_preauthorized_order,
+    enable_preauthorized_submit: bool = False,
+    max_preauthorized_submits: int = 2,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     if preflight.get("status") != "PAPER-MARKET-OPEN-GO":
@@ -108,12 +145,16 @@ def run_guarded_watch(
                 "interval_seconds": interval_seconds,
                 "iterations": iterations,
                 "auto_submit_enabled": False,
+                "preauthorized_submit_enabled": enable_preauthorized_submit,
+                "max_preauthorized_submits": max_preauthorized_submits,
                 "use_paper_account": use_paper_account,
                 "simulated_equity": None if use_paper_account else equity,
                 "preflight_status": preflight.get("status"),
             }
         )
     )
+    preauthorized_attempts = 0
+    preauthorized_stopped = False
     for index in range(iterations):
         event = post_tick(
             api_base,
@@ -129,6 +170,57 @@ def run_guarded_watch(
             consecutive_losses,
         )
         print(json.dumps({"status": "WATCH-TICK-OK", "iteration": index + 1, "event": event}))
+        if (
+            enable_preauthorized_submit
+            and not preauthorized_stopped
+            and isinstance(event.get("order_proposal"), dict)
+        ):
+            if preauthorized_attempts >= max_preauthorized_submits:
+                preauthorized_stopped = True
+                print(
+                    json.dumps(
+                        {
+                            "status": "PREAUTHORIZED-SUBMIT-SKIPPED",
+                            "reason": "max_preauthorized_submits_reached",
+                        }
+                    )
+                )
+            else:
+                preauthorized_attempts += 1
+                try:
+                    submitted = submit_preauthorized(api_base, api_key, event)
+                    print(
+                        json.dumps(
+                            {
+                                "status": "PREAUTHORIZED-SUBMIT-OK",
+                                "iteration": index + 1,
+                                "result": submitted,
+                            }
+                        )
+                    )
+                except urllib.error.HTTPError as exc:
+                    body = exc.read().decode("utf-8")[:500]
+                    preauthorized_stopped = True
+                    print(
+                        json.dumps(
+                            {
+                                "status": "PREAUTHORIZED-SUBMIT-BLOCKED",
+                                "iteration": index + 1,
+                                "reason": f"http_error:{exc.code}:{body}",
+                            }
+                        )
+                    )
+                except urllib.error.URLError as exc:
+                    preauthorized_stopped = True
+                    print(
+                        json.dumps(
+                            {
+                                "status": "PREAUTHORIZED-SUBMIT-BLOCKED",
+                                "iteration": index + 1,
+                                "reason": f"network_error:{exc.reason}",
+                            }
+                        )
+                    )
         if index < iterations - 1:
             sleep(interval_seconds)
     return 0
@@ -150,6 +242,9 @@ def run_guarded_watchlist(
     daily_pnl: float = 0.0,
     consecutive_losses: int = 0,
     post_tick: Callable[..., dict[str, object]] = post_watch_tick,
+    submit_preauthorized: Callable[[str, str, dict[str, object]], dict[str, object]] = submit_preauthorized_order,
+    enable_preauthorized_submit: bool = False,
+    max_preauthorized_submits: int = 2,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
     if len(symbols) == 1:
@@ -168,6 +263,9 @@ def run_guarded_watchlist(
             daily_pnl=daily_pnl,
             consecutive_losses=consecutive_losses,
             post_tick=post_tick,
+            submit_preauthorized=submit_preauthorized,
+            enable_preauthorized_submit=enable_preauthorized_submit,
+            max_preauthorized_submits=max_preauthorized_submits,
             sleep=sleep,
         )
     if preflight.get("status") != "PAPER-MARKET-OPEN-GO":
@@ -192,12 +290,16 @@ def run_guarded_watchlist(
                 "iterations": iterations,
                 "ticks_planned": len(symbols) * iterations,
                 "auto_submit_enabled": False,
+                "preauthorized_submit_enabled": enable_preauthorized_submit,
+                "max_preauthorized_submits": max_preauthorized_submits,
                 "use_paper_account": use_paper_account,
                 "simulated_equity": None if use_paper_account else equity,
                 "preflight_status": preflight.get("status"),
             }
         )
     )
+    preauthorized_attempts = 0
+    preauthorized_stopped = False
     for cycle_index in range(iterations):
         for symbol in symbols:
             event = post_tick(
@@ -223,6 +325,60 @@ def run_guarded_watchlist(
                     }
                 )
             )
+            if (
+                enable_preauthorized_submit
+                and not preauthorized_stopped
+                and isinstance(event.get("order_proposal"), dict)
+            ):
+                if preauthorized_attempts >= max_preauthorized_submits:
+                    preauthorized_stopped = True
+                    print(
+                        json.dumps(
+                            {
+                                "status": "PREAUTHORIZED-SUBMIT-SKIPPED",
+                                "reason": "max_preauthorized_submits_reached",
+                            }
+                        )
+                    )
+                else:
+                    preauthorized_attempts += 1
+                    try:
+                        submitted = submit_preauthorized(api_base, api_key, event)
+                        print(
+                            json.dumps(
+                                {
+                                    "status": "PREAUTHORIZED-SUBMIT-OK",
+                                    "cycle": cycle_index + 1,
+                                    "symbol": symbol,
+                                    "result": submitted,
+                                }
+                            )
+                        )
+                    except urllib.error.HTTPError as exc:
+                        body = exc.read().decode("utf-8")[:500]
+                        preauthorized_stopped = True
+                        print(
+                            json.dumps(
+                                {
+                                    "status": "PREAUTHORIZED-SUBMIT-BLOCKED",
+                                    "cycle": cycle_index + 1,
+                                    "symbol": symbol,
+                                    "reason": f"http_error:{exc.code}:{body}",
+                                }
+                            )
+                        )
+                    except urllib.error.URLError as exc:
+                        preauthorized_stopped = True
+                        print(
+                            json.dumps(
+                                {
+                                    "status": "PREAUTHORIZED-SUBMIT-BLOCKED",
+                                    "cycle": cycle_index + 1,
+                                    "symbol": symbol,
+                                    "reason": f"network_error:{exc.reason}",
+                                }
+                            )
+                        )
         if cycle_index < iterations - 1:
             sleep(interval_seconds)
     return 0
@@ -240,6 +396,8 @@ def main() -> int:
     parser.add_argument("--simulated-equity", type=float, default=None)
     parser.add_argument("--daily-pnl", type=float, default=0.0)
     parser.add_argument("--consecutive-losses", type=int, default=0)
+    parser.add_argument("--preauthorized-submit", action="store_true")
+    parser.add_argument("--max-preauthorized-submits", type=int, default=2)
     args = parser.parse_args()
 
     try:
@@ -261,6 +419,9 @@ def main() -> int:
         return 1
     if args.simulated_equity is not None and args.simulated_equity <= 0:
         print(json.dumps({"status": "NO-GO", "reason": "simulated_equity_must_be_positive"}))
+        return 1
+    if args.max_preauthorized_submits < 0 or args.max_preauthorized_submits > 5:
+        print(json.dumps({"status": "NO-GO", "reason": "max_preauthorized_submits_must_be_between_0_and_5"}))
         return 1
 
     load_dotenv(ROOT / ".env")
@@ -296,6 +457,8 @@ def main() -> int:
             peak_equity=peak_equity,
             daily_pnl=args.daily_pnl,
             consecutive_losses=args.consecutive_losses,
+            enable_preauthorized_submit=args.preauthorized_submit,
+            max_preauthorized_submits=args.max_preauthorized_submits,
         )
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8")[:500]

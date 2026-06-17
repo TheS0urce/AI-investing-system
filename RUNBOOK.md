@@ -345,6 +345,19 @@ the focused read-only watch once per U.S. session, and records completion in
 `state/market_open_watch_agent.json`. It does not activate preauthorization or submit
 orders.
 Watch mode does not submit orders.
+
+To test the bounded paper preauthorization submit path, run the market-open watch
+with the explicit submit switch only after activating a bounded paper authorization
+lease:
+
+```bash
+.venv/bin/python scripts/run_market_open_paper_watch.py --preauthorized-submit
+```
+
+This mode still uses the paper-only `/broker/paper/preauthorization/submit` route,
+submits only when a watch tick emits an `order_proposal`, and stops further attempts
+after a policy/API block.
+
 History is persisted locally to `logs/paper_watch_history.jsonl`, which is gitignored runtime data.
 Export watch history for review:
 ```bash
