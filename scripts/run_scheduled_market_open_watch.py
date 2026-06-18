@@ -111,7 +111,7 @@ def main() -> int:
     parser.add_argument("--symbols", default="QQQ,NVDA,MSFT")
     parser.add_argument("--feed", default="iex")
     parser.add_argument("--interval-seconds", type=float, default=10.0)
-    parser.add_argument("--iterations", type=int, default=30)
+    parser.add_argument("--iterations", type=int, default=90)
     parser.add_argument("--simulated-equity", type=float, default=100.0)
     parser.add_argument("--state-path", type=Path, default=DEFAULT_STATE_PATH)
     parser.add_argument("--log-path", type=Path, default=DEFAULT_LOG_PATH)

@@ -341,7 +341,8 @@ tail -f logs/market_open_watch_agent.log
 
 The agent runs `scripts/run_scheduled_market_open_watch.py` every five minutes. It
 uses the local API paper clock, waits until at least 9:45 a.m. New York time, runs
-the focused read-only watch once per U.S. session, and records completion in
+the focused read-only watch through approximately 10:10 a.m. once per U.S. session,
+and records completion in
 `state/market_open_watch_agent.json`. It does not activate preauthorization or submit
 orders.
 Watch mode does not submit orders.

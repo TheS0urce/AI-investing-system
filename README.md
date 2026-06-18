@@ -94,7 +94,8 @@ The current launcher set includes Start API, Health, Dashboard, Daily Ops, Marke
 For unattended market-open validation, install the local watch LaunchAgent with
 `./scripts/install_market_open_watch_agent.sh`. It checks the paper clock every five
 minutes, waits until at least 9:45 a.m. New York time, and runs the focused read-only
-watch once per U.S. session. It does not activate preauthorization or submit orders.
+watch once per U.S. session through approximately 10:10 a.m. It does not activate
+preauthorization or submit orders.
 
 The watch runner also has an explicit paper-only submit bridge for the bounded
 preauthorization endpoint:
