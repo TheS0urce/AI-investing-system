@@ -7,6 +7,14 @@ cd "$PROJECT_DIR"
 LABEL="com.aiinvesting.market-open-watch"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 USER_DOMAIN="gui/$(id -u)"
+PREAUTHORIZED_SUBMIT_ARG=""
+
+if [[ "${1:-}" == "--preauthorized-submit" ]]; then
+  PREAUTHORIZED_SUBMIT_ARG="    <string>--preauthorized-submit</string>"
+elif [[ -n "${1:-}" ]]; then
+  echo "Usage: $0 [--preauthorized-submit]" >&2
+  exit 1
+fi
 
 mkdir -p "$HOME/Library/LaunchAgents" logs state
 
@@ -34,6 +42,7 @@ cat > "$PLIST" <<PLIST
   <array>
     <string>${PROJECT_DIR}/.venv/bin/python</string>
     <string>${PROJECT_DIR}/scripts/run_scheduled_market_open_watch.py</string>
+${PREAUTHORIZED_SUBMIT_ARG}
   </array>
   <key>WorkingDirectory</key>
   <string>${PROJECT_DIR}</string>
@@ -52,5 +61,10 @@ launchctl bootstrap "$USER_DOMAIN" "$PLIST"
 launchctl kickstart -k "${USER_DOMAIN}/${LABEL}"
 
 echo "LaunchAgent installed: $LABEL"
+if [[ -n "$PREAUTHORIZED_SUBMIT_ARG" ]]; then
+  echo "Mode: bounded preauthorized paper submit"
+else
+  echo "Mode: read-only paper watch"
+fi
 echo "Plist: $PLIST"
 echo "Log: ${PROJECT_DIR}/logs/market_open_watch_agent.log"

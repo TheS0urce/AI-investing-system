@@ -108,6 +108,12 @@ This mode remains off by default. It only attempts paper bracket submission when
 watch tick produces an `order_proposal`, and the API still requires an active
 bounded paper authorization lease plus all paper-only broker guards.
 
+After explicit bounded-paper authorization, install the unattended submit mode with:
+
+```bash
+./scripts/install_market_open_watch_agent.sh --preauthorized-submit
+```
+
 ### Bounded paper preauthorization
 
 The preauthorization mechanism is paper-only and remains inactive by default. It does not enable

@@ -359,6 +359,12 @@ This mode still uses the paper-only `/broker/paper/preauthorization/submit` rout
 submits only when a watch tick emits an `order_proposal`, and stops further attempts
 after a policy/API block.
 
+To enable the same mode for the local unattended agent after explicit authorization:
+
+```bash
+./scripts/install_market_open_watch_agent.sh --preauthorized-submit
+```
+
 History is persisted locally to `logs/paper_watch_history.jsonl`, which is gitignored runtime data.
 Export watch history for review:
 ```bash
