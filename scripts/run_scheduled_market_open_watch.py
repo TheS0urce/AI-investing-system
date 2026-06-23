@@ -106,6 +106,18 @@ def run_watch_command(args: argparse.Namespace) -> subprocess.CompletedProcess[s
     return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
 
 
+def extract_status_lines(output: str, statuses: set[str]) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    for line in output.splitlines():
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict) and payload.get("status") in statuses:
+            matches.append(payload)
+    return matches
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the focused market-open paper watch once per open session.")
     parser.add_argument("--symbols", default="QQQ,NVDA,MSFT")
@@ -163,10 +175,26 @@ def main() -> int:
         return 0
 
     result = run_watch_command(args)
+    preauthorized_events = extract_status_lines(
+        result.stdout,
+        {
+            "PREAUTHORIZED-SUBMIT-OK",
+            "PREAUTHORIZED-SUBMIT-BLOCKED",
+            "PREAUTHORIZED-SUBMIT-SKIPPED",
+        },
+    )
+    proposal_events = [
+        item
+        for item in extract_status_lines(result.stdout, {"WATCH-TICK-OK", "WATCHLIST-TICK-OK"})
+        if isinstance(item.get("event"), dict) and isinstance(item["event"].get("order_proposal"), dict)
+    ]
     run_payload = {
         "status": "WATCH-COMPLETED" if result.returncode == 0 else "WATCH-FAILED",
         "session_date": decision.session_date,
         "returncode": result.returncode,
+        "proposal_count": len(proposal_events),
+        "preauthorized_submit_event_count": len(preauthorized_events),
+        "preauthorized_submit_events": preauthorized_events,
         "stdout_tail": result.stdout[-4000:],
         "stderr_tail": result.stderr[-4000:],
     }

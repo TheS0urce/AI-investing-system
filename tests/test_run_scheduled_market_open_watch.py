@@ -93,3 +93,24 @@ def test_run_watch_command_includes_preauthorized_submit_flags(monkeypatch):
     assert result == "completed"
     assert "--preauthorized-submit" in captured["command"]
     assert captured["command"][-2:] == ["--max-preauthorized-submits", "2"]
+
+
+def test_extract_status_lines_returns_matching_json_payloads():
+    output = "\n".join(
+        [
+            '{"status":"WATCHLIST-TICK-OK","event":{"order_proposal":{"symbol":"NVDA"}}}',
+            "not-json",
+            '{"status":"PREAUTHORIZED-SUBMIT-BLOCKED","reason":"expired"}',
+            '{"status":"PREFLIGHT-CHECK"}',
+        ]
+    )
+
+    matches = scheduled.extract_status_lines(
+        output,
+        {"WATCHLIST-TICK-OK", "PREAUTHORIZED-SUBMIT-BLOCKED"},
+    )
+
+    assert [item["status"] for item in matches] == [
+        "WATCHLIST-TICK-OK",
+        "PREAUTHORIZED-SUBMIT-BLOCKED",
+    ]
