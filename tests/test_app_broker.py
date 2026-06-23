@@ -238,7 +238,7 @@ def test_active_preauthorization_submits_bounded_fractional_paper_entry(monkeypa
         "limit_price": "430.00",
         "extended_hours": False,
     }
-    assert response.json()["protection_mode"] == "application_managed_fractional_entry"
+    assert response.json()["protection_mode"] == "planned_application_managed_exit_pending_verification"
     assert response.json()["protective_exit"]["stop_price"] == 423.55
     assert response.json()["protective_exit"]["take_profit_price"] == 442.9
     assert called == {"symbol": "QQQ", "quantity": 0.005, "limit_price": 430.0}

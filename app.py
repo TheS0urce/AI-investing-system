@@ -1063,7 +1063,7 @@ def broker_paper_preauthorized_submit(
         "effective_limits": asdict(decision.effective_limits),
         "broker_order": serialize_paper_order_result(result),
         "protective_exit": asdict(exits),
-        "protection_mode": "application_managed_fractional_entry",
+        "protection_mode": "planned_application_managed_exit_pending_verification",
         "broker_payload": alpaca_order_payload(order),
     }
 

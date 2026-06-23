@@ -33,7 +33,7 @@ This summary covers the bounded paper preauthorization run for the 2026-06-23 U.
 
 ## Fix Applied
 
-The preauthorized paper submit endpoint now routes bounded fractional entries as simple Alpaca limit orders instead of broker bracket orders. It still calculates the planned stop-loss and take-profit levels and returns them as `protective_exit` with `protection_mode=application_managed_fractional_entry`.
+The preauthorized paper submit endpoint now routes bounded fractional entries as simple Alpaca limit orders instead of broker bracket orders. It still calculates the planned stop-loss and take-profit levels and returns them as `protective_exit` with `protection_mode=planned_application_managed_exit_pending_verification`.
 
 ## Remaining Blocker
 
