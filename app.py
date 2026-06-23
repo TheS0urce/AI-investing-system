@@ -20,14 +20,12 @@ from src.ai_investing.alpaca import (
     AlpacaAccountSummary,
     AlpacaMarketDataCredentials,
     AlpacaPaperCredentials,
-    alpaca_bracket_order_payload,
     alpaca_order_payload,
     cancel_paper_orders,
     fetch_paper_account,
     fetch_paper_clock,
     fetch_stock_snapshot,
     fetch_paper_orders,
-    submit_paper_bracket_order,
     submit_paper_order,
 )
 from src.ai_investing.broker import broker_readiness
@@ -1044,12 +1042,7 @@ def broker_paper_preauthorized_submit(
         policy=preauthorization_policy,
     )
     try:
-        result = submit_paper_bracket_order(
-            alpaca_paper_credentials(),
-            order,
-            stop_price=exits.stop_price,
-            take_profit_price=exits.take_profit_price,
-        )
+        result = submit_paper_order(alpaca_paper_credentials(), order)
     except (RuntimeError, ValueError) as exc:
         preauthorization_store.record_operational_error(str(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -1060,7 +1053,7 @@ def broker_paper_preauthorized_submit(
         symbol=order.symbol,
     )
     system._audit(
-        "preauthorized_paper_bracket_submitted",
+        "preauthorized_paper_fractional_entry_submitted",
         "WARN",
         f"{result.side} {result.symbol} status={result.status}",
     )
@@ -1070,11 +1063,8 @@ def broker_paper_preauthorized_submit(
         "effective_limits": asdict(decision.effective_limits),
         "broker_order": serialize_paper_order_result(result),
         "protective_exit": asdict(exits),
-        "broker_payload": alpaca_bracket_order_payload(
-            order,
-            stop_price=exits.stop_price,
-            take_profit_price=exits.take_profit_price,
-        ),
+        "protection_mode": "application_managed_fractional_entry",
+        "broker_payload": alpaca_order_payload(order),
     }
 
 

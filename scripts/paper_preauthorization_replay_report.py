@@ -116,7 +116,8 @@ def build_preauthorization_replay_report(
         "authorization_activated": False,
         "paper_orders_submitted": 0,
         "live_trading_approved": False,
-        "broker_fractional_bracket_verified": False,
+        "broker_fractional_entry_route": "simple_limit_order",
+        "protective_exit_route": "application_managed_pending_verification",
         "conclusion": (
             "Historical BUY proposals fit the bounded policy envelope."
             if eligible
@@ -157,7 +158,8 @@ def format_markdown_report(report: dict[str, object], generated_at: str) -> str:
             f"- Authorization activated: `{report.get('authorization_activated')}`",
             f"- Paper orders submitted: `{report.get('paper_orders_submitted')}`",
             f"- Live trading approved: `{report.get('live_trading_approved')}`",
-            f"- Fractional bracket verified by broker: `{report.get('broker_fractional_bracket_verified')}`",
+            f"- Broker fractional entry route: `{report.get('broker_fractional_entry_route')}`",
+            f"- Protective exit route: `{report.get('protective_exit_route')}`",
             "",
             "## Conclusion",
             "",

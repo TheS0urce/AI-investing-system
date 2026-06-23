@@ -177,7 +177,7 @@ def test_preauthorized_submit_cannot_reach_broker_while_inactive(monkeypatch, tm
     def fail_submit(*args, **kwargs):
         raise AssertionError("inactive authorization reached broker")
 
-    monkeypatch.setattr(app, "submit_paper_bracket_order", fail_submit)
+    monkeypatch.setattr(app, "submit_paper_order", fail_submit)
     response = client(monkeypatch).post(
         "/broker/paper/preauthorization/submit",
         headers={"X-API-Key": "test-key"},
@@ -195,7 +195,7 @@ def test_preauthorized_submit_cannot_reach_broker_while_inactive(monkeypatch, tm
     assert response.json()["detail"]["reason"] == "authorization_inactive_or_expired"
 
 
-def test_active_preauthorization_submits_bounded_paper_bracket(monkeypatch, tmp_path):
+def test_active_preauthorization_submits_bounded_fractional_paper_entry(monkeypatch, tmp_path):
     app.config.broker.provider = "alpaca"
     app.config.broker.mode = "paper"
     app.config.broker.live_enabled = False
@@ -209,15 +209,11 @@ def test_active_preauthorization_submits_bounded_paper_bracket(monkeypatch, tmp_
 
     called = {}
 
-    def fake_submit(credentials, order, *, stop_price, take_profit_price):
-        called.update(
-            symbol=order.symbol,
-            stop_price=stop_price,
-            take_profit_price=take_profit_price,
-        )
+    def fake_submit(credentials, order):
+        called.update(symbol=order.symbol, quantity=order.quantity, limit_price=order.limit_price)
         return FakeOrderResult()
 
-    monkeypatch.setattr(app, "submit_paper_bracket_order", fake_submit)
+    monkeypatch.setattr(app, "submit_paper_order", fake_submit)
     response = client(monkeypatch).post(
         "/broker/paper/preauthorization/submit",
         headers={"X-API-Key": "test-key"},
@@ -233,8 +229,19 @@ def test_active_preauthorization_submits_bounded_paper_bracket(monkeypatch, tmp_
 
     assert response.status_code == 200
     assert response.json()["submitted"] is True
-    assert response.json()["broker_payload"]["order_class"] == "bracket"
-    assert called == {"symbol": "QQQ", "stop_price": 423.55, "take_profit_price": 442.9}
+    assert response.json()["broker_payload"] == {
+        "symbol": "QQQ",
+        "qty": "0.005",
+        "side": "buy",
+        "type": "limit",
+        "time_in_force": "day",
+        "limit_price": "430.00",
+        "extended_hours": False,
+    }
+    assert response.json()["protection_mode"] == "application_managed_fractional_entry"
+    assert response.json()["protective_exit"]["stop_price"] == 423.55
+    assert response.json()["protective_exit"]["take_profit_price"] == 442.9
+    assert called == {"symbol": "QQQ", "quantity": 0.005, "limit_price": 430.0}
     assert store.load().entries_this_session == 1
 
 

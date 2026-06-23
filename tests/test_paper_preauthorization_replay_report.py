@@ -71,4 +71,5 @@ def test_markdown_keeps_replay_read_only():
     assert "read-only replay" in markdown
     assert "Authorization activated: `False`" in markdown
     assert "Paper orders submitted: `0`" in markdown
-    assert "Fractional bracket verified by broker: `False`" in markdown
+    assert "Broker fractional entry route: `simple_limit_order`" in markdown
+    assert "Protective exit route: `application_managed_pending_verification`" in markdown
