@@ -6,7 +6,7 @@ This record documents the consolidated read-only paper operations state.
 
 ## Snapshot
 
-- Generated at: `2026-06-25T03:35:33.219663+00:00`
+- Generated at: `2026-06-25T22:09:11.369747+00:00`
 - Snapshot status: `PAPER-OPS-READY`
 - Broker status: `ALPACA-PAPER-READY`
 - Broker mode: `paper`
@@ -28,9 +28,9 @@ This record documents the consolidated read-only paper operations state.
 ## Paper Market Clock
 
 - Is open: `False`
-- Timestamp: `2026-06-24T23:35:32.138795329-04:00`
-- Next open: `2026-06-25T09:30:00-04:00`
-- Next close: `2026-06-25T16:00:00-04:00`
+- Timestamp: `2026-06-25T18:09:10.574919041-04:00`
+- Next open: `2026-06-26T09:30:00-04:00`
+- Next close: `2026-06-26T16:00:00-04:00`
 
 ## Safety Evidence
 
@@ -38,7 +38,7 @@ This record documents the consolidated read-only paper operations state.
 - Readiness status: `PAPER-GO`
 - Readiness checks: `11/11 PASS`
 - Watch ticks reviewed: `500`
-- Watch proposals: `63`
+- Watch proposals: `7`
 - Dry-run drill status: `PAPER-DRILL-READY-NO-SUBMIT`
 - Dry-run submit attempted: `False`
 - Paper submission attempted: `False`

@@ -6,10 +6,10 @@ This report summarizes paper watch-mode evidence. Watch mode is read-only and do
 
 ## Totals
 
-- Generated at: `2026-06-25T03:38:35.228296+00:00`
+- Generated at: `2026-06-25T22:09:57.665986+00:00`
 - Total ticks: `500`
-- Proposals: `63`
-- Blocked or no proposal: `437`
+- Proposals: `7`
+- Blocked or no proposal: `493`
 - Auto submit enabled: `False`
 
 ## Watch Statuses
@@ -28,34 +28,22 @@ This report summarizes paper watch-mode evidence. Watch mode is read-only and do
 
 ## Audit Events
 
-- manual_review_required: `63`
-- market_block: `214`
-- order_block: `223`
+- manual_review_required: `7`
+- market_block: `192`
+- order_block: `301`
 
 ## Audit Details
 
-- insufficient_liquidity: `108`
-- insufficient_net_edge_after_costs: `223`
-- proposed Side.BUY 0.0019 QQQ: `3`
-- proposed Side.BUY 0.0020 QQQ: `8`
-- proposed Side.BUY 0.0021 QQQ: `2`
-- proposed Side.BUY 0.0022 QQQ: `12`
-- proposed Side.BUY 0.0023 QQQ: `12`
-- proposed Side.BUY 0.0024 QQQ: `8`
-- proposed Side.BUY 0.0026 QQQ: `1`
+- insufficient_liquidity: `84`
+- insufficient_net_edge_after_costs: `94`
 - proposed Side.BUY 0.0034 MSFT: `2`
-- proposed Side.BUY 0.0035 MSFT: `3`
+- proposed Side.BUY 0.0035 MSFT: `1`
 - proposed Side.BUY 0.0037 MSFT: `1`
-- proposed Side.BUY 0.0039 MSFT: `1`
 - proposed Side.BUY 0.0040 MSFT: `1`
 - proposed Side.BUY 0.0041 MSFT: `1`
 - proposed Side.BUY 0.0044 MSFT: `1`
-- proposed Side.BUY 0.0064 NVDA: `2`
-- proposed Side.BUY 0.0065 NVDA: `1`
-- proposed Side.BUY 0.0066 NVDA: `1`
-- proposed Side.BUY 0.0067 NVDA: `2`
-- proposed Side.BUY 0.0074 NVDA: `1`
-- spread_too_wide: `106`
+- short_sale_disabled: `207`
+- spread_too_wide: `108`
 
 ## Operator Conclusion
 
