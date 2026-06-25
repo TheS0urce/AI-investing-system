@@ -75,6 +75,38 @@ def schedule_decision(
     return ScheduleDecision(True, "market_open_window_ready", session_date)
 
 
+def retry_cutoff_reached(
+    clock: dict[str, Any],
+    *,
+    retry_until_hour: int,
+    retry_until_minute: int,
+) -> bool:
+    timestamp = parse_clock_timestamp(clock.get("timestamp"))
+    if timestamp is None:
+        return True
+    return (timestamp.hour, timestamp.minute) >= (retry_until_hour, retry_until_minute)
+
+
+def session_completion_reason(
+    *,
+    preauthorized_submit: bool,
+    proposal_count: int,
+    preauthorized_submit_event_count: int,
+    clock: dict[str, Any],
+    retry_until_hour: int,
+    retry_until_minute: int,
+) -> str | None:
+    if not preauthorized_submit:
+        return "read_only_watch_completed"
+    if preauthorized_submit_event_count > 0:
+        return "preauthorized_submit_event_observed"
+    if proposal_count > 0:
+        return "proposal_observed_without_submit_event"
+    if retry_cutoff_reached(clock, retry_until_hour=retry_until_hour, retry_until_minute=retry_until_minute):
+        return "no_proposal_retry_cutoff_reached"
+    return None
+
+
 def append_log(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -153,6 +185,8 @@ def main() -> int:
     parser.add_argument("--log-path", type=Path, default=DEFAULT_LOG_PATH)
     parser.add_argument("--run-after-hour", type=int, default=9)
     parser.add_argument("--run-after-minute", type=int, default=45)
+    parser.add_argument("--retry-until-hour", type=int, default=11)
+    parser.add_argument("--retry-until-minute", type=int, default=30)
     parser.add_argument("--preauthorized-submit", action="store_true")
     parser.add_argument("--max-preauthorized-submits", type=int, default=2)
     args = parser.parse_args()
@@ -259,8 +293,33 @@ def main() -> int:
     if result.returncode != 0:
         return result.returncode
 
+    completion_reason = session_completion_reason(
+        preauthorized_submit=args.preauthorized_submit,
+        proposal_count=len(proposal_events),
+        preauthorized_submit_event_count=len(preauthorized_events),
+        clock=clock,
+        retry_until_hour=args.retry_until_hour,
+        retry_until_minute=args.retry_until_minute,
+    )
+    if completion_reason is None:
+        state["last_attempt_session_date"] = decision.session_date
+        state["last_attempt_at"] = datetime.now().astimezone().isoformat()
+        state["last_attempt_reason"] = "no_proposal_before_retry_cutoff"
+        state["last_command"] = "run_market_open_paper_watch"
+        save_state(args.state_path, state)
+        retry_payload = {
+            "status": "WATCH-RETRY-ARMED",
+            "session_date": decision.session_date,
+            "reason": "no_proposal_before_retry_cutoff",
+            "retry_until": f"{args.retry_until_hour:02d}:{args.retry_until_minute:02d}",
+        }
+        append_log(args.log_path, retry_payload)
+        print(json.dumps(retry_payload))
+        return 0
+
     state["last_completed_session_date"] = decision.session_date
     state["last_completed_at"] = datetime.now().astimezone().isoformat()
+    state["last_completed_reason"] = completion_reason
     state["last_command"] = "run_market_open_paper_watch"
     save_state(args.state_path, state)
     return 0

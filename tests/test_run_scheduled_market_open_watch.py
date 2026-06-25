@@ -131,6 +131,58 @@ def test_preauthorized_submit_allowed_requires_active_non_paused_status():
     ) is False
 
 
+def test_session_completion_retries_zero_proposal_preauthorized_run_before_cutoff():
+    reason = scheduled.session_completion_reason(
+        preauthorized_submit=True,
+        proposal_count=0,
+        preauthorized_submit_event_count=0,
+        clock=clock("2026-06-16T10:00:00-04:00"),
+        retry_until_hour=11,
+        retry_until_minute=30,
+    )
+
+    assert reason is None
+
+
+def test_session_completion_finishes_zero_proposal_preauthorized_run_after_cutoff():
+    reason = scheduled.session_completion_reason(
+        preauthorized_submit=True,
+        proposal_count=0,
+        preauthorized_submit_event_count=0,
+        clock=clock("2026-06-16T11:30:00-04:00"),
+        retry_until_hour=11,
+        retry_until_minute=30,
+    )
+
+    assert reason == "no_proposal_retry_cutoff_reached"
+
+
+def test_session_completion_finishes_after_preauthorized_submit_event():
+    reason = scheduled.session_completion_reason(
+        preauthorized_submit=True,
+        proposal_count=1,
+        preauthorized_submit_event_count=1,
+        clock=clock("2026-06-16T10:00:00-04:00"),
+        retry_until_hour=11,
+        retry_until_minute=30,
+    )
+
+    assert reason == "preauthorized_submit_event_observed"
+
+
+def test_session_completion_finishes_read_only_watch_immediately():
+    reason = scheduled.session_completion_reason(
+        preauthorized_submit=False,
+        proposal_count=0,
+        preauthorized_submit_event_count=0,
+        clock=clock("2026-06-16T10:00:00-04:00"),
+        retry_until_hour=11,
+        retry_until_minute=30,
+    )
+
+    assert reason == "read_only_watch_completed"
+
+
 def test_extract_status_lines_returns_matching_json_payloads():
     output = "\n".join(
         [
