@@ -55,6 +55,15 @@ class AlpacaPaperOrderResult:
 
 
 @dataclass(frozen=True)
+class AlpacaPaperPosition:
+    symbol: str
+    quantity: float
+    market_value: float
+    avg_entry_price: float
+    current_price: float
+
+
+@dataclass(frozen=True)
 class AlpacaPaperClock:
     timestamp: str
     is_open: bool
@@ -159,6 +168,20 @@ def paper_order_result_from_payload(payload: dict[str, Any]) -> AlpacaPaperOrder
 
 def paper_orders_from_payload(payload: list[dict[str, Any]]) -> list[AlpacaPaperOrderResult]:
     return [paper_order_result_from_payload(item) for item in payload]
+
+
+def paper_position_from_payload(payload: dict[str, Any]) -> AlpacaPaperPosition:
+    return AlpacaPaperPosition(
+        symbol=str(payload.get("symbol", "")).upper(),
+        quantity=float(decimal_string(payload.get("qty", 0))),
+        market_value=float(decimal_string(payload.get("market_value", 0))),
+        avg_entry_price=float(decimal_string(payload.get("avg_entry_price", 0))),
+        current_price=float(decimal_string(payload.get("current_price", 0))),
+    )
+
+
+def paper_positions_from_payload(payload: list[dict[str, Any]]) -> list[AlpacaPaperPosition]:
+    return [paper_position_from_payload(item) for item in payload]
 
 
 def paper_clock_from_payload(payload: dict[str, Any]) -> AlpacaPaperClock:
@@ -304,6 +327,34 @@ def fetch_paper_orders(
     if not isinstance(payload, list):
         raise RuntimeError("alpaca_orders_invalid_payload")
     return paper_orders_from_payload(payload)
+
+
+def fetch_paper_positions(
+    credentials: AlpacaPaperCredentials,
+    timeout: float = 10.0,
+) -> list[AlpacaPaperPosition]:
+    ensure_paper_credentials(credentials)
+    request = Request(
+        f"{credentials.base_url.rstrip('/')}/v2/positions",
+        headers={
+            "APCA-API-KEY-ID": credentials.api_key,
+            "APCA-API-SECRET-KEY": credentials.secret_key,
+        },
+    )
+    context = ssl.create_default_context(cafile=certifi.where()) if certifi else ssl.create_default_context()
+    try:
+        with urlopen(request, timeout=timeout, context=context) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        raise RuntimeError(f"alpaca_positions_http_error:{exc.code}:{http_error_body(exc)}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"alpaca_positions_network_error:{exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("alpaca_positions_invalid_json") from exc
+
+    if not isinstance(payload, list):
+        raise RuntimeError("alpaca_positions_invalid_payload")
+    return paper_positions_from_payload(payload)
 
 
 def fetch_paper_clock(credentials: AlpacaPaperCredentials, timeout: float = 10.0) -> AlpacaPaperClock:

@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import urllib.error
+import urllib.request
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -106,6 +107,29 @@ def run_watch_command(args: argparse.Namespace) -> subprocess.CompletedProcess[s
     return subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
 
 
+def post_json(api_base: str, path: str, api_key: str) -> Any:
+    request = urllib.request.Request(
+        f"{api_base.rstrip('/')}{path}",
+        data=b"{}",
+        headers={
+            "Content-Type": "application/json",
+            "X-API-Key": api_key,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def preauthorized_submit_allowed(payload: dict[str, Any]) -> bool:
+    if payload.get("status") != "ACTIVE":
+        return False
+    limits = payload.get("effective_limits")
+    if not isinstance(limits, dict):
+        return False
+    return limits.get("status") != "PAUSED"
+
+
 def extract_status_lines(output: str, statuses: set[str]) -> list[dict[str, Any]]:
     matches: list[dict[str, Any]] = []
     for line in output.splitlines():
@@ -143,6 +167,20 @@ def main() -> int:
         return 1
 
     try:
+        try:
+            exit_payload = post_json(api_base, "/broker/paper/protective_exits/check", api_key)
+            append_log(args.log_path, {"status": "PROTECTIVE-EXIT-CHECK", "result": exit_payload})
+            print(json.dumps({"status": "PROTECTIVE-EXIT-CHECK", "result": exit_payload}))
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8")[:500]
+            payload = {"status": "PROTECTIVE-EXIT-CHECK-FAILED", "reason": f"http_error:{exc.code}:{body}"}
+            append_log(args.log_path, payload)
+            print(json.dumps(payload))
+        except urllib.error.URLError as exc:
+            payload = {"status": "PROTECTIVE-EXIT-CHECK-FAILED", "reason": f"network_error:{exc.reason}"}
+            append_log(args.log_path, payload)
+            print(json.dumps(payload))
+
         clock_payload = fetch_json(api_base, "/broker/paper/clock", api_key)
     except urllib.error.HTTPError as exc:
         body = exc.read().decode("utf-8")[:500]
@@ -173,6 +211,24 @@ def main() -> int:
     print(json.dumps(payload))
     if not decision.should_run:
         return 0
+
+    if args.preauthorized_submit:
+        try:
+            preauthorization_payload = fetch_json(api_base, "/broker/paper/preauthorization", api_key)
+        except urllib.error.HTTPError as exc:
+            body = exc.read().decode("utf-8")[:500]
+            preauthorization_payload = {"status": "UNKNOWN", "reason": f"http_error:{exc.code}:{body}"}
+        except urllib.error.URLError as exc:
+            preauthorization_payload = {"status": "UNKNOWN", "reason": f"network_error:{exc.reason}"}
+        if not isinstance(preauthorization_payload, dict) or not preauthorized_submit_allowed(preauthorization_payload):
+            args.preauthorized_submit = False
+            payload = {
+                "status": "PREAUTHORIZED-SUBMIT-DISABLED",
+                "reason": "preauthorization_not_active_or_paused",
+                "preauthorization": preauthorization_payload,
+            }
+            append_log(args.log_path, payload)
+            print(json.dumps(payload))
 
     result = run_watch_command(args)
     preauthorized_events = extract_status_lines(

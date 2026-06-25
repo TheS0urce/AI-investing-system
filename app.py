@@ -3,7 +3,7 @@ import json
 import csv
 import io
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -26,6 +26,7 @@ from src.ai_investing.alpaca import (
     fetch_paper_clock,
     fetch_stock_snapshot,
     fetch_paper_orders,
+    fetch_paper_positions,
     submit_paper_order,
 )
 from src.ai_investing.broker import broker_readiness
@@ -58,6 +59,9 @@ DEFAULT_RATE = os.getenv("AI_RATE_LIMIT_PER_MINUTE", "60")
 WATCH_HISTORY_PATH = Path(os.getenv("AI_WATCH_HISTORY_PATH", "logs/paper_watch_history.jsonl"))
 PREAUTHORIZATION_STATE_PATH = Path(
     os.getenv("AI_PAPER_PREAUTHORIZATION_PATH", "state/paper_preauthorization.json")
+)
+PROTECTIVE_EXIT_STATE_PATH = Path(
+    os.getenv("AI_PAPER_PROTECTIVE_EXIT_PATH", "state/paper_protective_exits.json")
 )
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[f"{DEFAULT_RATE}/minute"])
@@ -194,6 +198,16 @@ def serialize_paper_order_result(order):
     }
 
 
+def serialize_paper_position(position):
+    return {
+        "symbol": position.symbol,
+        "quantity": position.quantity,
+        "market_value": position.market_value,
+        "avg_entry_price": position.avg_entry_price,
+        "current_price": position.current_price,
+    }
+
+
 def serialize_paper_clock(clock):
     return {
         "timestamp": clock.timestamp,
@@ -289,6 +303,78 @@ def read_watch_events(limit: int) -> list[dict]:
             if isinstance(payload, dict):
                 events.append(payload)
     return events[-limit:]
+
+
+def load_protective_exit_state(path: Path | None = None) -> dict[str, object]:
+    path = path or PROTECTIVE_EXIT_STATE_PATH
+    if not path.exists():
+        return {"active": [], "history": []}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"active": [], "history": [{"event": "state_load_failed", "at": datetime.now(timezone.utc).isoformat()}]}
+    if not isinstance(payload, dict):
+        return {"active": [], "history": []}
+    active = payload.get("active") if isinstance(payload.get("active"), list) else []
+    history = payload.get("history") if isinstance(payload.get("history"), list) else []
+    return {"active": active, "history": history}
+
+
+def save_protective_exit_state(state: dict[str, object], path: Path | None = None) -> None:
+    path = path or PROTECTIVE_EXIT_STATE_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f"{path.suffix}.tmp")
+    temporary.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+    temporary.replace(path)
+
+
+def record_protective_exit_plan(
+    *,
+    broker_order_id: str,
+    plan: dict[str, object],
+    submitted_at: str | None,
+    path: Path | None = None,
+) -> dict[str, object]:
+    state = load_protective_exit_state(path)
+    active = state["active"] if isinstance(state.get("active"), list) else []
+    active.append(
+        {
+            **plan,
+            "entry_broker_order_id": broker_order_id,
+            "entry_submitted_at": submitted_at or datetime.now(timezone.utc).isoformat(),
+            "status": "ACTIVE",
+            "exit_broker_order_id": None,
+            "exit_reason": None,
+            "exit_submitted_at": None,
+        }
+    )
+    state["active"] = active
+    save_protective_exit_state(state, path)
+    return state
+
+
+def parse_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def exit_trigger_for_plan(plan: dict[str, object], market_price: float, now: datetime) -> str | None:
+    stop_price = float(plan.get("stop_price", 0.0) or 0.0)
+    take_profit_price = float(plan.get("take_profit_price", 0.0) or 0.0)
+    if stop_price > 0 and market_price <= stop_price:
+        return "stop_loss"
+    if take_profit_price > 0 and market_price >= take_profit_price:
+        return "take_profit"
+    entry_submitted_at = parse_timestamp(plan.get("entry_submitted_at"))
+    max_holding_minutes = int(plan.get("max_holding_minutes", 0) or 0)
+    if entry_submitted_at is not None and max_holding_minutes > 0:
+        if now >= entry_submitted_at + timedelta(minutes=max_holding_minutes):
+            return "max_holding_time"
+    return None
 
 
 def flatten_watch_event(event: dict) -> dict[str, object]:
@@ -1052,6 +1138,12 @@ def broker_paper_preauthorized_submit(
         order_notional_usd=order.quantity * order.limit_price,
         symbol=order.symbol,
     )
+    protective_exit_payload = asdict(exits)
+    record_protective_exit_plan(
+        broker_order_id=result.broker_order_id,
+        plan=protective_exit_payload,
+        submitted_at=result.submitted_at,
+    )
     system._audit(
         "preauthorized_paper_fractional_entry_submitted",
         "WARN",
@@ -1062,9 +1154,131 @@ def broker_paper_preauthorized_submit(
         "authorization_reason": decision.reason,
         "effective_limits": asdict(decision.effective_limits),
         "broker_order": serialize_paper_order_result(result),
-        "protective_exit": asdict(exits),
+        "protective_exit": protective_exit_payload,
         "protection_mode": "planned_application_managed_exit_pending_verification",
         "broker_payload": alpaca_order_payload(order),
+    }
+
+
+@app.post("/broker/paper/protective_exits/check")
+@limiter.limit("20/minute")
+def broker_paper_protective_exits_check(
+    request: Request,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = broker_readiness(config.broker)
+    if broker.live_enabled or config.broker.mode != "paper":
+        raise HTTPException(status_code=403, detail="paper_only_guard_failed")
+    if broker.status != "ALPACA-PAPER-READY":
+        raise HTTPException(status_code=403, detail=broker.status)
+
+    state = load_protective_exit_state()
+    active = state["active"] if isinstance(state.get("active"), list) else []
+    if not active:
+        return {"status": "NO-ACTIVE-PROTECTIVE-EXITS", "checked": 0, "actions": []}
+
+    try:
+        clock = fetch_paper_clock(alpaca_paper_credentials())
+        positions = fetch_paper_positions(alpaca_paper_credentials())
+    except (RuntimeError, ValueError) as exc:
+        preauthorization_store.record_operational_error(str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    if not clock.is_open:
+        return {
+            "status": "MARKET-CLOSED-NO-ACTION",
+            "checked": len(active),
+            "clock": serialize_paper_clock(clock),
+            "actions": [],
+        }
+
+    now = parse_timestamp(clock.timestamp) or datetime.now(timezone.utc)
+    position_by_symbol = {position.symbol.upper(): position for position in positions if position.quantity > 0}
+    remaining: list[dict[str, object]] = []
+    history = state["history"] if isinstance(state.get("history"), list) else []
+    actions: list[dict[str, object]] = []
+
+    for plan in active:
+        if not isinstance(plan, dict) or plan.get("status") != "ACTIVE":
+            history.append(plan if isinstance(plan, dict) else {"event": "invalid_plan_skipped"})
+            continue
+        symbol = str(plan.get("symbol", "")).upper()
+        position = position_by_symbol.get(symbol)
+        if position is None:
+            remaining.append(plan)
+            actions.append({"symbol": symbol, "action": "SKIPPED", "reason": "no_open_position"})
+            continue
+
+        try:
+            market = fetch_stock_snapshot(alpaca_market_data_credentials(), symbol)
+        except (RuntimeError, ValueError) as exc:
+            remaining.append(plan)
+            actions.append({"symbol": symbol, "action": "SKIPPED", "reason": str(exc)})
+            continue
+
+        trigger = exit_trigger_for_plan(plan, market.price, now)
+        if trigger is None:
+            remaining.append(plan)
+            actions.append(
+                {
+                    "symbol": symbol,
+                    "action": "HELD",
+                    "market_price": market.price,
+                    "stop_price": plan.get("stop_price"),
+                    "take_profit_price": plan.get("take_profit_price"),
+                }
+            )
+            continue
+
+        exit_quantity = min(float(plan.get("quantity", 0.0) or 0.0), position.quantity)
+        if exit_quantity <= 0:
+            remaining.append(plan)
+            actions.append({"symbol": symbol, "action": "SKIPPED", "reason": "non_positive_exit_quantity"})
+            continue
+
+        exit_order = OrderProposal(
+            symbol=symbol,
+            side=Side.SELL,
+            quantity=exit_quantity,
+            limit_price=market.price,
+            expected_edge_bps=0.0,
+            reason=f"protective_exit:{trigger}",
+        )
+        try:
+            result = submit_paper_order(alpaca_paper_credentials(), exit_order)
+        except (RuntimeError, ValueError) as exc:
+            preauthorization_store.record_operational_error(str(exc))
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        completed_plan = {
+            **plan,
+            "status": "EXIT_SUBMITTED",
+            "exit_reason": trigger,
+            "exit_broker_order_id": result.broker_order_id,
+            "exit_submitted_at": result.submitted_at or now.isoformat(),
+            "exit_limit_price": market.price,
+        }
+        history.append(completed_plan)
+        actions.append(
+            {
+                "symbol": symbol,
+                "action": "EXIT_SUBMITTED",
+                "reason": trigger,
+                "market_price": market.price,
+                "broker_order": serialize_paper_order_result(result),
+            }
+        )
+
+    state["active"] = remaining
+    state["history"] = history[-200:]
+    save_protective_exit_state(state)
+    status = "PROTECTIVE-EXIT-SUBMITTED" if any(item.get("action") == "EXIT_SUBMITTED" for item in actions) else "PROTECTIVE-EXITS-CHECKED"
+    return {
+        "status": status,
+        "checked": len(active),
+        "actions": actions,
+        "open_positions": [serialize_paper_position(position) for position in positions],
     }
 
 

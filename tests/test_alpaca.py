@@ -14,6 +14,8 @@ from src.ai_investing.alpaca import (
     paper_clock_from_payload,
     paper_order_result_from_payload,
     paper_orders_from_payload,
+    paper_position_from_payload,
+    paper_positions_from_payload,
 )
 from src.ai_investing.models import OrderProposal, Side
 
@@ -183,6 +185,36 @@ def test_paper_orders_from_payload_returns_safe_order_results():
     )
     assert [result.broker_order_id for result in results] == ["order-1", "order-2"]
     assert [result.status for result in results] == ["accepted", "filled"]
+
+
+def test_paper_position_from_payload_normalizes_position_fields():
+    position = paper_position_from_payload(
+        {
+            "symbol": "qqq",
+            "qty": "0.0025",
+            "market_value": "1.80",
+            "avg_entry_price": "720.00",
+            "current_price": "721.00",
+        }
+    )
+
+    assert position.symbol == "QQQ"
+    assert position.quantity == 0.0025
+    assert position.market_value == 1.8
+    assert position.avg_entry_price == 720.0
+    assert position.current_price == 721.0
+
+
+def test_paper_positions_from_payload_returns_safe_positions():
+    positions = paper_positions_from_payload(
+        [
+            {"symbol": "QQQ", "qty": "0.0025"},
+            {"symbol": "NVDA", "qty": "0.01"},
+        ]
+    )
+
+    assert [position.symbol for position in positions] == ["QQQ", "NVDA"]
+    assert [position.quantity for position in positions] == [0.0025, 0.01]
 
 
 def test_paper_clock_from_payload_returns_safe_fields():

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
@@ -14,6 +15,15 @@ class FakeOrderResult:
     symbol: str = "QQQ"
     side: str = "buy"
     submitted_at: str | None = "2026-05-22T00:00:00Z"
+
+
+@dataclass(frozen=True)
+class FakePosition:
+    symbol: str = "QQQ"
+    quantity: float = 0.005
+    market_value: float = 2.2
+    avg_entry_price: float = 430.0
+    current_price: float = 440.0
 
 
 @dataclass(frozen=True)
@@ -204,6 +214,7 @@ def test_active_preauthorization_submits_bounded_fractional_paper_entry(monkeypa
     store = PreauthorizationStore(tmp_path / "preauth.json")
     store.activate(confirmation="AUTHORIZE_BOUNDED_PAPER")
     monkeypatch.setattr(app, "preauthorization_store", store)
+    monkeypatch.setattr(app, "PROTECTIVE_EXIT_STATE_PATH", tmp_path / "protective_exits.json")
     monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock())
     monkeypatch.setattr(app, "fetch_paper_orders", lambda credentials, status, limit: [])
 
@@ -243,6 +254,72 @@ def test_active_preauthorization_submits_bounded_fractional_paper_entry(monkeypa
     assert response.json()["protective_exit"]["take_profit_price"] == 442.9
     assert called == {"symbol": "QQQ", "quantity": 0.005, "limit_price": 430.0}
     assert store.load().entries_this_session == 1
+    exits = app.load_protective_exit_state(tmp_path / "protective_exits.json")
+    assert exits["active"][0]["symbol"] == "QQQ"
+    assert exits["active"][0]["stop_price"] == 423.55
+
+
+def test_protective_exit_check_submits_fractional_sell_on_take_profit(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    monkeypatch.setattr(app, "preauthorization_store", PreauthorizationStore(tmp_path / "preauth.json"))
+    monkeypatch.setattr(app, "PROTECTIVE_EXIT_STATE_PATH", tmp_path / "protective_exits.json")
+    app.save_protective_exit_state(
+        {
+            "active": [
+                {
+                    "symbol": "QQQ",
+                    "quantity": 0.005,
+                    "entry_price": 430.0,
+                    "stop_price": 423.55,
+                    "take_profit_price": 442.9,
+                    "max_holding_minutes": 360,
+                    "entry_broker_order_id": "entry-1",
+                    "entry_submitted_at": "2026-05-22T14:00:00Z",
+                    "status": "ACTIVE",
+                }
+            ],
+            "history": [],
+        },
+        tmp_path / "protective_exits.json",
+    )
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(timestamp="2026-05-22T15:00:00Z"))
+    monkeypatch.setattr(app, "fetch_paper_positions", lambda credentials: [FakePosition(current_price=445.0)])
+    monkeypatch.setattr(
+        app,
+        "fetch_stock_snapshot",
+        lambda credentials, symbol: app.MarketSnapshot(
+            symbol=symbol,
+            price=445.0,
+            spread_bps=2.0,
+            volume_24h=1_000_000,
+            volatility_30d=0.03,
+            timestamp=datetime.now(timezone.utc),
+        ),
+    )
+    submitted = {}
+
+    def fake_submit(credentials, order):
+        submitted.update(symbol=order.symbol, side=order.side, quantity=order.quantity, limit_price=order.limit_price)
+        return FakeOrderResult(symbol=order.symbol, side=order.side.value.lower())
+
+    monkeypatch.setattr(app, "submit_paper_order", fake_submit)
+
+    response = client(monkeypatch).post(
+        "/broker/paper/protective_exits/check",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PROTECTIVE-EXIT-SUBMITTED"
+    assert response.json()["actions"][0]["reason"] == "take_profit"
+    assert submitted == {"symbol": "QQQ", "side": app.Side.SELL, "quantity": 0.005, "limit_price": 445.0}
+    exits = app.load_protective_exit_state(tmp_path / "protective_exits.json")
+    assert exits["active"] == []
+    assert exits["history"][0]["status"] == "EXIT_SUBMITTED"
 
 
 def test_paper_cancel_requires_confirmation_phrase(monkeypatch):

@@ -95,6 +95,42 @@ def test_run_watch_command_includes_preauthorized_submit_flags(monkeypatch):
     assert captured["command"][-2:] == ["--max-preauthorized-submits", "2"]
 
 
+def test_run_watch_command_omits_preauthorized_submit_flags_when_disabled(monkeypatch):
+    captured = {}
+
+    def fake_run(command, cwd, text, capture_output, check):
+        captured["command"] = command
+        return "completed"
+
+    monkeypatch.setattr(scheduled.subprocess, "run", fake_run)
+
+    scheduled.run_watch_command(
+        argparse.Namespace(
+            symbols="QQQ,NVDA",
+            feed="iex",
+            interval_seconds=10,
+            iterations=30,
+            simulated_equity=100,
+            preauthorized_submit=False,
+            max_preauthorized_submits=2,
+        )
+    )
+
+    assert "--preauthorized-submit" not in captured["command"]
+
+
+def test_preauthorized_submit_allowed_requires_active_non_paused_status():
+    assert scheduled.preauthorized_submit_allowed(
+        {"status": "ACTIVE", "effective_limits": {"status": "ACTIVE"}}
+    ) is True
+    assert scheduled.preauthorized_submit_allowed(
+        {"status": "ACTIVE", "effective_limits": {"status": "PAUSED"}}
+    ) is False
+    assert scheduled.preauthorized_submit_allowed(
+        {"status": "INACTIVE", "effective_limits": {"status": "ACTIVE"}}
+    ) is False
+
+
 def test_extract_status_lines_returns_matching_json_payloads():
     output = "\n".join(
         [
