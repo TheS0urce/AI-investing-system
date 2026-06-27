@@ -104,9 +104,12 @@ preauthorization endpoint:
 .venv/bin/python scripts/run_market_open_paper_watch.py --preauthorized-submit
 ```
 
-This mode remains off by default. It only attempts paper bracket submission when a
-watch tick produces an `order_proposal`, and the API still requires an active
-bounded paper authorization lease plus all paper-only broker guards.
+This mode remains off by default. It only attempts a simple fractional paper entry
+when a watch tick produces an `order_proposal`, and the API still requires an active
+bounded paper authorization lease plus all paper-only broker guards. Protective
+stops, take profits, and maximum holding times are managed by the application.
+Submitted exits remain pending until broker reconciliation confirms a fill; rejected,
+canceled, expired, or suspended exits are re-queued and pause further entries.
 
 After explicit bounded-paper authorization, install the unattended submit mode with:
 
@@ -132,7 +135,7 @@ Initial envelope:
 - The capital basis is the preauthorization ledger's current equity, updated from realized
   closed trades; Alpaca paper-account buying power is intentionally not used for sizing
 - Minimum 9 bps expected edge and maximum 30 bps spread
-- Attached 1.5% stop-loss and 3% take-profit bracket legs
+- Application-managed 1.5% stop-loss, 3% take-profit, and six-hour maximum hold exits
 - Automatic pause after three consecutive losses or one operational error
 - 10% sizing progression after each qualified 20-trade window, capped at three steps
 
@@ -147,8 +150,9 @@ POST /broker/paper/preauthorization/submit
 
 Activation requires `AUTHORIZE_BOUNDED_PAPER`; revocation requires
 `REVOKE_BOUNDED_PAPER`. Broker or state errors fail closed and revoke active execution.
-The fractional bracket combination must be verified in Alpaca paper trading before this route is
-used unattended; a broker rejection is treated as an operational pause.
+Fractional entry and application-managed exit behavior must be verified in Alpaca
+paper trading before this route is used unattended; a broker rejection is treated
+as an operational pause.
 
 ## Important
 

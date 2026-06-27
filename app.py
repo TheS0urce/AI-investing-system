@@ -1175,7 +1175,13 @@ def broker_paper_protective_exits_check(
 
     state = load_protective_exit_state()
     active = state["active"] if isinstance(state.get("active"), list) else []
-    if not active:
+    history = state["history"] if isinstance(state.get("history"), list) else []
+    pending_exits = [
+        item
+        for item in history
+        if isinstance(item, dict) and item.get("status") == "EXIT_SUBMITTED"
+    ]
+    if not active and not pending_exits:
         return {"status": "NO-ACTIVE-PROTECTIVE-EXITS", "checked": 0, "actions": []}
 
     try:
@@ -1185,19 +1191,119 @@ def broker_paper_protective_exits_check(
         preauthorization_store.record_operational_error(str(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    actions: list[dict[str, object]] = []
+    if pending_exits:
+        try:
+            broker_orders = fetch_paper_orders(alpaca_paper_credentials(), status="all", limit=100)
+        except (RuntimeError, ValueError) as exc:
+            preauthorization_store.record_operational_error(str(exc))
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        order_by_id = {order.broker_order_id: order for order in broker_orders}
+        reconciled_history: list[object] = []
+        requeued: list[dict[str, object]] = []
+        terminal_failure_statuses = {"canceled", "expired", "rejected", "suspended"}
+        for item in history:
+            if not isinstance(item, dict) or item.get("status") != "EXIT_SUBMITTED":
+                reconciled_history.append(item)
+                continue
+            order_id = str(item.get("exit_broker_order_id", ""))
+            broker_order = order_by_id.get(order_id)
+            if broker_order is None:
+                reconciled_history.append(item)
+                actions.append(
+                    {
+                        "symbol": item.get("symbol"),
+                        "action": "EXIT_PENDING",
+                        "broker_order_id": order_id,
+                        "reason": "broker_order_not_found_in_recent_orders",
+                    }
+                )
+                continue
+            broker_status = broker_order.status.lower()
+            if broker_status == "filled":
+                reconciled_history.append(
+                    {
+                        **item,
+                        "status": "EXIT_FILLED",
+                        "exit_reconciled_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                actions.append(
+                    {
+                        "symbol": item.get("symbol"),
+                        "action": "EXIT_FILLED",
+                        "broker_order": serialize_paper_order_result(broker_order),
+                    }
+                )
+                continue
+            if broker_status in terminal_failure_statuses:
+                reconciled_history.append(
+                    {
+                        **item,
+                        "status": "EXIT_FAILED",
+                        "exit_failure_status": broker_status,
+                        "exit_reconciled_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                requeued.append(
+                    {
+                        **item,
+                        "status": "ACTIVE",
+                        "exit_broker_order_id": None,
+                        "exit_submitted_at": None,
+                    }
+                )
+                reason = f"protective_exit_{broker_status}:{order_id}"
+                preauthorization_store.record_operational_error(reason)
+                actions.append(
+                    {
+                        "symbol": item.get("symbol"),
+                        "action": "EXIT_REQUEUED",
+                        "broker_order": serialize_paper_order_result(broker_order),
+                        "reason": broker_status,
+                    }
+                )
+                continue
+            reconciled_history.append(item)
+            actions.append(
+                {
+                    "symbol": item.get("symbol"),
+                    "action": "EXIT_PENDING",
+                    "broker_order": serialize_paper_order_result(broker_order),
+                }
+            )
+
+        history = reconciled_history
+        active = [*active, *requeued]
+        state["active"] = active
+        state["history"] = history[-200:]
+        save_protective_exit_state(state)
+
+    checked = len(active) + len(pending_exits)
+    if not active:
+        return {
+            "status": (
+                "PROTECTIVE-EXIT-FILLED"
+                if any(item.get("action") == "EXIT_FILLED" for item in actions)
+                else "PROTECTIVE-EXIT-PENDING"
+            ),
+            "checked": checked,
+            "actions": actions,
+            "open_positions": [serialize_paper_position(position) for position in positions],
+        }
+
     if not clock.is_open:
         return {
             "status": "MARKET-CLOSED-NO-ACTION",
-            "checked": len(active),
+            "checked": checked,
             "clock": serialize_paper_clock(clock),
-            "actions": [],
+            "actions": actions,
         }
 
     now = parse_timestamp(clock.timestamp) or datetime.now(timezone.utc)
     position_by_symbol = {position.symbol.upper(): position for position in positions if position.quantity > 0}
     remaining: list[dict[str, object]] = []
-    history = state["history"] if isinstance(state.get("history"), list) else []
-    actions: list[dict[str, object]] = []
 
     for plan in active:
         if not isinstance(plan, dict) or plan.get("status") != "ACTIVE":
@@ -1276,7 +1382,7 @@ def broker_paper_protective_exits_check(
     status = "PROTECTIVE-EXIT-SUBMITTED" if any(item.get("action") == "EXIT_SUBMITTED" for item in actions) else "PROTECTIVE-EXITS-CHECKED"
     return {
         "status": status,
-        "checked": len(active),
+        "checked": checked,
         "actions": actions,
         "open_positions": [serialize_paper_position(position) for position in positions],
     }

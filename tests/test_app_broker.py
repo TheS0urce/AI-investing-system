@@ -322,6 +322,114 @@ def test_protective_exit_check_submits_fractional_sell_on_take_profit(monkeypatc
     assert exits["history"][0]["status"] == "EXIT_SUBMITTED"
 
 
+def test_protective_exit_check_reconciles_filled_sell(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    monkeypatch.setattr(app, "preauthorization_store", PreauthorizationStore(tmp_path / "preauth.json"))
+    monkeypatch.setattr(app, "PROTECTIVE_EXIT_STATE_PATH", tmp_path / "protective_exits.json")
+    app.save_protective_exit_state(
+        {
+            "active": [],
+            "history": [
+                {
+                    "symbol": "QQQ",
+                    "quantity": 0.005,
+                    "status": "EXIT_SUBMITTED",
+                    "exit_broker_order_id": "exit-1",
+                }
+            ],
+        },
+        tmp_path / "protective_exits.json",
+    )
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=False))
+    monkeypatch.setattr(app, "fetch_paper_positions", lambda credentials: [])
+    monkeypatch.setattr(
+        app,
+        "fetch_paper_orders",
+        lambda credentials, status, limit: [
+            FakeOrderResult(
+                broker_order_id="exit-1",
+                status="filled",
+                symbol="QQQ",
+                side="sell",
+            )
+        ],
+    )
+
+    response = client(monkeypatch).post(
+        "/broker/paper/protective_exits/check",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PROTECTIVE-EXIT-FILLED"
+    assert response.json()["actions"][0]["action"] == "EXIT_FILLED"
+    exits = app.load_protective_exit_state(tmp_path / "protective_exits.json")
+    assert exits["active"] == []
+    assert exits["history"][0]["status"] == "EXIT_FILLED"
+
+
+def test_protective_exit_check_requeues_rejected_sell(monkeypatch, tmp_path):
+    app.config.broker.provider = "alpaca"
+    app.config.broker.mode = "paper"
+    app.config.broker.live_enabled = False
+    app.config.broker.paper_api_key_present = True
+    app.config.broker.paper_secret_key_present = True
+    store = PreauthorizationStore(tmp_path / "preauth.json")
+    store.activate(confirmation="AUTHORIZE_BOUNDED_PAPER")
+    monkeypatch.setattr(app, "preauthorization_store", store)
+    monkeypatch.setattr(app, "PROTECTIVE_EXIT_STATE_PATH", tmp_path / "protective_exits.json")
+    app.save_protective_exit_state(
+        {
+            "active": [],
+            "history": [
+                {
+                    "symbol": "QQQ",
+                    "quantity": 0.005,
+                    "entry_price": 430.0,
+                    "stop_price": 423.55,
+                    "take_profit_price": 442.9,
+                    "status": "EXIT_SUBMITTED",
+                    "exit_broker_order_id": "exit-1",
+                }
+            ],
+        },
+        tmp_path / "protective_exits.json",
+    )
+    monkeypatch.setattr(app, "fetch_paper_clock", lambda credentials: FakeClock(is_open=False))
+    monkeypatch.setattr(app, "fetch_paper_positions", lambda credentials: [FakePosition()])
+    monkeypatch.setattr(
+        app,
+        "fetch_paper_orders",
+        lambda credentials, status, limit: [
+            FakeOrderResult(
+                broker_order_id="exit-1",
+                status="rejected",
+                symbol="QQQ",
+                side="sell",
+            )
+        ],
+    )
+
+    response = client(monkeypatch).post(
+        "/broker/paper/protective_exits/check",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "MARKET-CLOSED-NO-ACTION"
+    assert response.json()["actions"][0]["action"] == "EXIT_REQUEUED"
+    exits = app.load_protective_exit_state(tmp_path / "protective_exits.json")
+    assert exits["active"][0]["status"] == "ACTIVE"
+    assert exits["active"][0]["exit_broker_order_id"] is None
+    assert exits["history"][0]["status"] == "EXIT_FAILED"
+    assert store.load().active is False
+    assert store.load().operational_errors == 1
+
+
 def test_paper_cancel_requires_confirmation_phrase(monkeypatch):
     response = client(monkeypatch).post(
         "/broker/paper/cancel_orders",
