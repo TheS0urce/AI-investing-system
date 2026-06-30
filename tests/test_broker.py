@@ -1,4 +1,4 @@
-from src.ai_investing.broker import broker_readiness
+from src.ai_investing.broker import broker_readiness, live_broker_readiness
 from src.ai_investing.config import BrokerConfig
 
 
@@ -66,3 +66,56 @@ def test_broker_readiness_allows_alpaca_paper_config_only():
     assert status.ready
     assert status.status == "ALPACA-PAPER-READY"
     assert status.reason == "paper_credentials_present_live_routing_disabled"
+
+
+def test_live_broker_readiness_is_disabled_by_default():
+    status = live_broker_readiness(BrokerConfig(provider="alpaca", mode="paper"))
+
+    assert not status.ready
+    assert status.status == "LIVE-DISABLED"
+
+
+def test_live_broker_readiness_rejects_non_exact_domain():
+    status = live_broker_readiness(
+        BrokerConfig(
+            provider="alpaca",
+            mode="live",
+            live_enabled=True,
+            live_base_url="https://paper-api.alpaca.markets",
+            live_api_key_present=True,
+            live_secret_key_present=True,
+        )
+    )
+
+    assert not status.ready
+    assert status.reason == "live_base_url_not_exact"
+
+
+def test_live_broker_readiness_requires_separate_credentials():
+    status = live_broker_readiness(
+        BrokerConfig(
+            provider="alpaca",
+            mode="live",
+            live_enabled=True,
+            live_base_url="https://api.alpaca.markets",
+        )
+    )
+
+    assert not status.ready
+    assert status.reason == "live_credentials_not_configured"
+
+
+def test_live_broker_readiness_accepts_exact_enabled_configuration():
+    status = live_broker_readiness(
+        BrokerConfig(
+            provider="alpaca",
+            mode="live",
+            live_enabled=True,
+            live_base_url="https://api.alpaca.markets",
+            live_api_key_present=True,
+            live_secret_key_present=True,
+        )
+    )
+
+    assert status.ready
+    assert status.status == "ALPACA-LIVE-READY"

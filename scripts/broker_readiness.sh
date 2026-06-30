@@ -18,23 +18,22 @@ echo "broker_provider=$PROVIDER"
 echo "broker_mode=$MODE"
 echo "broker_live_enabled=$LIVE_ENABLED"
 
-if [[ "$LIVE_ENABLED" != "false" ]]; then
-  echo "NO-GO: BROKER_LIVE_ENABLED must remain false for this stage" >&2
-  exit 1
-fi
-
 if [[ "$PROVIDER" == "unset" || "$MODE" == "unset" ]]; then
   echo "PAPER-BROKER-NOT-CONFIGURED: safe for current shadow deployment"
   exit 0
 fi
 
-if [[ "$MODE" != "paper" ]]; then
-  echo "NO-GO: BROKER_MODE must be paper for Stage-1 integration" >&2
+if [[ "$PROVIDER" != "alpaca" ]]; then
+  echo "NO-GO: unsupported BROKER_PROVIDER=$PROVIDER" >&2
   exit 1
 fi
 
-case "$PROVIDER" in
-  alpaca)
+case "$MODE" in
+  paper)
+    if [[ "$LIVE_ENABLED" != "false" ]]; then
+      echo "NO-GO: paper mode requires BROKER_LIVE_ENABLED=false" >&2
+      exit 1
+    fi
     missing=0
     for name in ALPACA_PAPER_API_KEY ALPACA_PAPER_SECRET_KEY ALPACA_PAPER_BASE_URL; do
       if [[ -z "${!name:-}" || "${!name:-}" == "replace_me" ]]; then
@@ -48,8 +47,30 @@ case "$PROVIDER" in
     fi
     echo "ALPACA-PAPER-READY: credentials are present locally"
     ;;
+  live)
+    if [[ "$LIVE_ENABLED" != "true" ]]; then
+      echo "LIVE-DISABLED: live mode requires BROKER_LIVE_ENABLED=true" >&2
+      exit 1
+    fi
+    if [[ "${ALPACA_LIVE_BASE_URL:-}" != "https://api.alpaca.markets" ]]; then
+      echo "LIVE-NO-GO: exact Alpaca production domain required" >&2
+      exit 1
+    fi
+    missing=0
+    for name in ALPACA_LIVE_API_KEY ALPACA_LIVE_SECRET_KEY; do
+      if [[ -z "${!name:-}" || "${!name:-}" == replace_* ]]; then
+        echo "missing_or_placeholder=$name"
+        missing=1
+      fi
+    done
+    if [[ "$missing" -eq 1 ]]; then
+      echo "LIVE-NO-GO: add separate live credentials to local .env only"
+      exit 1
+    fi
+    echo "ALPACA-LIVE-CONFIG-READY: API preflight and authorization still required"
+    ;;
   *)
-    echo "NO-GO: unsupported BROKER_PROVIDER=$PROVIDER" >&2
+    echo "NO-GO: BROKER_MODE must be paper or live" >&2
     exit 1
     ;;
 esac

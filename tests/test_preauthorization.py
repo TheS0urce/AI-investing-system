@@ -5,6 +5,8 @@ import pytest
 from src.ai_investing.models import OrderProposal, Side
 from src.ai_investing.preauthorization import (
     AuthorizationContext,
+    LIVE_AUTHORIZATION_CONFIRMATION,
+    LIVE_REVOCATION_CONFIRMATION,
     PAPER_AUTHORIZATION_CONFIRMATION,
     PAPER_REVOCATION_CONFIRMATION,
     PerformanceSnapshot,
@@ -343,3 +345,111 @@ def test_policy_starts_with_requested_high_aversion_limits():
     assert policy.max_daily_loss_capital_pct == 0.02
     assert policy.stop_loss_pct == 0.015
     assert policy.take_profit_pct == 0.03
+
+
+def test_live_policy_requires_live_state_and_live_context():
+    policy = PreauthorizationPolicy(
+        paper_only=False,
+        max_order_notional_usd=6.0,
+        max_gross_exposure_usd=12.0,
+        max_daily_loss_usd=3.0,
+        max_order_capital_pct=0.02,
+        max_gross_exposure_capital_pct=0.04,
+        max_daily_loss_capital_pct=0.01,
+    )
+    state = active_state(
+        paper_only=False,
+        current_equity_usd=300.0,
+        peak_equity_usd=300.0,
+    )
+
+    decision = authorize_entry(
+        buy_order(notional=6.0),
+        spread_bps=5.0,
+        state=state,
+        context=context(broker_mode="live", live_enabled=True),
+        policy=policy,
+        now=NOW,
+    )
+
+    assert decision.approved
+    assert decision.reason == "preauthorized_live_entry"
+    assert decision.effective_limits.max_order_notional_usd == 6.0
+    assert decision.effective_limits.max_gross_exposure_usd == 12.0
+    assert decision.effective_limits.max_daily_loss_usd == 3.0
+
+
+def test_live_policy_rejects_paper_context():
+    policy = PreauthorizationPolicy(paper_only=False)
+    state = active_state(paper_only=False)
+
+    decision = authorize_entry(
+        buy_order(),
+        spread_bps=5.0,
+        state=state,
+        context=context(),
+        policy=policy,
+        now=NOW,
+    )
+
+    assert not decision.approved
+    assert decision.reason == "live_only_guard_failed"
+
+
+def test_live_store_uses_separate_phrase_mode_and_verified_capital(tmp_path):
+    store = PreauthorizationStore(
+        tmp_path / "live_authorization.json",
+        paper_only=False,
+        authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+        event_prefix="live",
+    )
+    policy = PreauthorizationPolicy(paper_only=False, lease_hours=24)
+
+    with pytest.raises(ValueError, match="preauthorization_confirmation_required"):
+        store.activate(confirmation=PAPER_AUTHORIZATION_CONFIRMATION, policy=policy, now=NOW)
+
+    state = store.activate(
+        confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        policy=policy,
+        available_capital_usd=300.0,
+        now=NOW,
+    )
+
+    assert state.active
+    assert state.paper_only is False
+    assert state.current_equity_usd == 300.0
+    assert state.expires_at == (NOW + timedelta(hours=24)).isoformat()
+    assert authorization_is_active(state, NOW, required_paper_only=False)
+    assert not authorization_is_active(state, NOW)
+
+    revoked = store.revoke(confirmation=LIVE_REVOCATION_CONFIRMATION, now=NOW)
+    assert not revoked.active
+
+
+def test_qualified_live_performance_gradually_scales_capital_percentages():
+    policy = PreauthorizationPolicy(
+        paper_only=False,
+        max_order_notional_usd=50.0,
+        max_gross_exposure_usd=100.0,
+        max_daily_loss_usd=3.0,
+        max_order_capital_pct=0.04,
+        max_gross_exposure_capital_pct=0.08,
+        max_daily_loss_capital_pct=0.01,
+        scale_capital_percentages=True,
+    )
+    limits = effective_limits(
+        PerformanceSnapshot(
+            closed_trades=20,
+            winning_trades=12,
+            realized_pnl_usd=5.0,
+            peak_equity_usd=300.0,
+            current_equity_usd=300.0,
+        ),
+        policy,
+    )
+
+    assert limits.risk_level == 1
+    assert limits.max_order_notional_usd == 13.2
+    assert limits.max_gross_exposure_usd == 26.4
+    assert limits.max_daily_loss_usd == 3.0

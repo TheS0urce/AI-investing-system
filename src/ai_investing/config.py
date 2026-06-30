@@ -36,6 +36,9 @@ class BrokerConfig(BaseModel):
     market_data_feed: str = "iex"
     paper_api_key_present: bool = False
     paper_secret_key_present: bool = False
+    live_base_url: str | None = None
+    live_api_key_present: bool = False
+    live_secret_key_present: bool = False
 
 
 class SystemConfig(BaseModel):

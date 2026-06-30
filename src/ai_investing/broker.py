@@ -87,3 +87,53 @@ def broker_readiness(config: BrokerConfig) -> BrokerReadiness:
         status="ALPACA-PAPER-READY",
         reason="paper_credentials_present_live_routing_disabled",
     )
+
+
+def live_broker_readiness(config: BrokerConfig) -> BrokerReadiness:
+    provider = config.provider.strip().lower()
+    mode = config.mode.strip().lower()
+
+    if provider != "alpaca":
+        return BrokerReadiness(
+            provider=provider or "none",
+            mode=mode or "none",
+            live_enabled=config.live_enabled,
+            ready=False,
+            status="LIVE-NO-GO",
+            reason="unsupported_live_broker_provider",
+        )
+    if mode != "live" or not config.live_enabled:
+        return BrokerReadiness(
+            provider=provider,
+            mode=mode,
+            live_enabled=config.live_enabled,
+            ready=False,
+            status="LIVE-DISABLED",
+            reason="live_mode_and_master_switch_required",
+        )
+    if config.live_base_url != "https://api.alpaca.markets":
+        return BrokerReadiness(
+            provider=provider,
+            mode=mode,
+            live_enabled=True,
+            ready=False,
+            status="LIVE-NO-GO",
+            reason="live_base_url_not_exact",
+        )
+    if not config.live_api_key_present or not config.live_secret_key_present:
+        return BrokerReadiness(
+            provider=provider,
+            mode=mode,
+            live_enabled=True,
+            ready=False,
+            status="LIVE-NO-GO",
+            reason="live_credentials_not_configured",
+        )
+    return BrokerReadiness(
+        provider=provider,
+        mode=mode,
+        live_enabled=True,
+        ready=True,
+        status="ALPACA-LIVE-READY",
+        reason="live_credentials_present_exact_domain_enforced",
+    )

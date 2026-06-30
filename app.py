@@ -29,11 +29,22 @@ from src.ai_investing.alpaca import (
     fetch_paper_positions,
     submit_paper_order,
 )
-from src.ai_investing.broker import broker_readiness
+from src.ai_investing.alpaca_live import (
+    AlpacaLiveCredentials,
+    cancel_live_orders,
+    fetch_live_account,
+    fetch_live_clock,
+    fetch_live_orders,
+    fetch_live_positions,
+    submit_live_order,
+)
+from src.ai_investing.broker import broker_readiness, live_broker_readiness
 from src.ai_investing.config import SystemConfig
 from src.ai_investing.models import MarketSnapshot, OrderProposal, PortfolioState, Side
 from src.ai_investing.preauthorization import (
     AuthorizationContext,
+    LIVE_AUTHORIZATION_CONFIRMATION,
+    LIVE_REVOCATION_CONFIRMATION,
     PreauthorizationPolicy,
     PreauthorizationStore,
     authorization_is_active,
@@ -57,11 +68,20 @@ app = FastAPI(title="AI Investing System", version="0.2.1")
 
 DEFAULT_RATE = os.getenv("AI_RATE_LIMIT_PER_MINUTE", "60")
 WATCH_HISTORY_PATH = Path(os.getenv("AI_WATCH_HISTORY_PATH", "logs/paper_watch_history.jsonl"))
+LIVE_WATCH_HISTORY_PATH = Path(
+    os.getenv("AI_LIVE_WATCH_HISTORY_PATH", "logs/live_watch_history.jsonl")
+)
 PREAUTHORIZATION_STATE_PATH = Path(
     os.getenv("AI_PAPER_PREAUTHORIZATION_PATH", "state/paper_preauthorization.json")
 )
 PROTECTIVE_EXIT_STATE_PATH = Path(
     os.getenv("AI_PAPER_PROTECTIVE_EXIT_PATH", "state/paper_protective_exits.json")
+)
+LIVE_AUTHORIZATION_STATE_PATH = Path(
+    os.getenv("AI_LIVE_AUTHORIZATION_PATH", "state/live_authorization.json")
+)
+LIVE_PROTECTIVE_EXIT_STATE_PATH = Path(
+    os.getenv("AI_LIVE_PROTECTIVE_EXIT_PATH", "state/live_protective_exits.json")
 )
 
 limiter = Limiter(key_func=get_remote_address, default_limits=[f"{DEFAULT_RATE}/minute"])
@@ -84,12 +104,36 @@ config = SystemConfig(
         "market_data_feed": os.getenv("ALPACA_MARKET_DATA_FEED", "iex"),
         "paper_api_key_present": bool(os.getenv("ALPACA_PAPER_API_KEY")),
         "paper_secret_key_present": bool(os.getenv("ALPACA_PAPER_SECRET_KEY")),
+        "live_base_url": os.getenv("ALPACA_LIVE_BASE_URL"),
+        "live_api_key_present": bool(os.getenv("ALPACA_LIVE_API_KEY")),
+        "live_secret_key_present": bool(os.getenv("ALPACA_LIVE_SECRET_KEY")),
     }
 )
 strategy = SimpleMomentumStrategy()
 system = InvestingSystem(config=config, strategy=strategy)
 preauthorization_policy = PreauthorizationPolicy()
 preauthorization_store = PreauthorizationStore(PREAUTHORIZATION_STATE_PATH)
+live_authorization_policy = PreauthorizationPolicy(
+    paper_only=False,
+    lease_hours=24,
+    max_order_notional_usd=50.0,
+    max_entries_per_session=2,
+    max_gross_exposure_usd=100.0,
+    max_daily_loss_usd=3.0,
+    max_order_capital_pct=0.04,
+    max_gross_exposure_capital_pct=0.08,
+    max_daily_loss_capital_pct=0.01,
+    scale_capital_percentages=True,
+)
+live_authorization_store = PreauthorizationStore(
+    LIVE_AUTHORIZATION_STATE_PATH,
+    paper_only=False,
+    authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+    revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+    event_prefix="live",
+)
+LIVE_EXPECTED_CAPITAL_USD = float(os.getenv("AI_LIVE_EXPECTED_CAPITAL_USD", "300"))
+LIVE_CAPITAL_TOLERANCE_USD = float(os.getenv("AI_LIVE_CAPITAL_TOLERANCE_USD", "50"))
 
 
 class TickRequest(BaseModel):
@@ -195,6 +239,8 @@ def serialize_paper_order_result(order):
         "symbol": order.symbol,
         "side": order.side,
         "submitted_at": order.submitted_at,
+        "filled_avg_price": getattr(order, "filled_avg_price", None),
+        "filled_quantity": getattr(order, "filled_quantity", None),
     }
 
 
@@ -231,11 +277,45 @@ def preauthorization_status_payload() -> dict[str, object]:
     }
 
 
+def live_authorization_status_payload() -> dict[str, object]:
+    state = live_authorization_store.load()
+    limits = effective_limits(
+        performance_from_state(state),
+        live_authorization_policy,
+        available_capital_usd=(
+            state.current_equity_usd
+            if state.activated_at
+            else LIVE_EXPECTED_CAPITAL_USD
+        ),
+    )
+    return {
+        "status": (
+            "ACTIVE"
+            if authorization_is_active(state, required_paper_only=False)
+            else "INACTIVE"
+        ),
+        "paper_only": False,
+        "live_routing_enabled": config.broker.live_enabled,
+        "capital_source": "verified_live_account.portfolio_value",
+        "authorization": asdict(state),
+        "policy": asdict(live_authorization_policy),
+        "effective_limits": asdict(limits),
+    }
+
+
 def alpaca_paper_credentials() -> AlpacaPaperCredentials:
     return AlpacaPaperCredentials(
         api_key=os.getenv("ALPACA_PAPER_API_KEY", ""),
         secret_key=os.getenv("ALPACA_PAPER_SECRET_KEY", ""),
         base_url=os.getenv("ALPACA_PAPER_BASE_URL", "https://paper-api.alpaca.markets"),
+    )
+
+
+def alpaca_live_credentials() -> AlpacaLiveCredentials:
+    return AlpacaLiveCredentials(
+        api_key=os.getenv("ALPACA_LIVE_API_KEY", ""),
+        secret_key=os.getenv("ALPACA_LIVE_SECRET_KEY", ""),
+        base_url=os.getenv("ALPACA_LIVE_BASE_URL", "https://api.alpaca.markets"),
     )
 
 
@@ -246,6 +326,89 @@ def alpaca_market_data_credentials(feed: str | None = None) -> AlpacaMarketDataC
         base_url=os.getenv("ALPACA_MARKET_DATA_BASE_URL", "https://data.alpaca.markets"),
         feed=feed or os.getenv("ALPACA_MARKET_DATA_FEED", "iex"),
     )
+
+
+def alpaca_live_market_data_credentials(feed: str | None = None) -> AlpacaMarketDataCredentials:
+    return AlpacaMarketDataCredentials(
+        api_key=os.getenv("ALPACA_LIVE_API_KEY", ""),
+        secret_key=os.getenv("ALPACA_LIVE_SECRET_KEY", ""),
+        base_url=os.getenv("ALPACA_MARKET_DATA_BASE_URL", "https://data.alpaca.markets"),
+        feed=feed or os.getenv("ALPACA_MARKET_DATA_FEED", "iex"),
+    )
+
+
+def live_preflight_payload() -> dict[str, object]:
+    broker = live_broker_readiness(config.broker)
+    authorization_state = live_authorization_store.load()
+    capital_reference = (
+        authorization_state.current_equity_usd
+        if authorization_state.activated_at
+        else LIVE_EXPECTED_CAPITAL_USD
+    )
+    capital_tolerance = (
+        max(LIVE_CAPITAL_TOLERANCE_USD, capital_reference * 0.20)
+        if authorization_state.activated_at
+        else LIVE_CAPITAL_TOLERANCE_USD
+    )
+    result: dict[str, object] = {
+        "status": "LIVE-NO-GO",
+        "broker": asdict(broker),
+        "expected_capital_usd": round(capital_reference, 2),
+        "capital_tolerance_usd": round(capital_tolerance, 2),
+        "authorization": live_authorization_status_payload(),
+        "checks": [],
+    }
+    checks: list[dict[str, object]] = result["checks"]  # type: ignore[assignment]
+
+    def add_check(name: str, passed: bool, detail: object = "") -> None:
+        checks.append(
+            {
+                "name": name,
+                "status": "PASS" if passed else "FAIL",
+                "detail": detail,
+            }
+        )
+
+    add_check("live_broker_configuration", broker.ready, broker.reason)
+    add_check("kill_switch_not_active", not config.policy.kill_switch)
+    add_check("long_only", not config.risk.allow_short_sales)
+    if not broker.ready:
+        return result
+
+    try:
+        credentials = alpaca_live_credentials()
+        account = fetch_live_account(credentials)
+        clock = fetch_live_clock(credentials)
+        orders = fetch_live_orders(credentials, status="open", limit=100)
+        positions = fetch_live_positions(credentials)
+    except (RuntimeError, ValueError) as exc:
+        add_check("live_broker_connectivity", False, str(exc))
+        return result
+
+    portfolio_value = float(account.portfolio_value)
+    minimum_capital = capital_reference - capital_tolerance
+    maximum_capital = capital_reference + capital_tolerance
+    add_check("live_broker_connectivity", True)
+    add_check("account_active", account.status.upper() == "ACTIVE", account.status)
+    add_check("account_currency_usd", account.currency.upper() == "USD", account.currency)
+    add_check(
+        "launch_capital_in_range",
+        minimum_capital <= portfolio_value <= maximum_capital,
+        portfolio_value,
+    )
+    add_check("no_open_live_orders", not orders, len(orders))
+    add_check("no_open_live_positions", not positions, len(positions))
+    result.update(
+        {
+            "account": serialize_account(account),
+            "clock": serialize_paper_clock(clock),
+            "open_orders": [serialize_paper_order_result(order) for order in orders],
+            "open_positions": [serialize_paper_position(position) for position in positions],
+        }
+    )
+    if checks and all(check["status"] == "PASS" for check in checks):
+        result["status"] = "LIVE-PREFLIGHT-GO"
+    return result
 
 
 def portfolio_from_account(account: AlpacaAccountSummary, consecutive_losses: int = 0) -> PortfolioState:
@@ -284,6 +447,12 @@ def latest_audit_payload():
 def append_watch_event(event: dict):
     WATCH_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with WATCH_HISTORY_PATH.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+
+
+def append_live_watch_event(event: dict):
+    LIVE_WATCH_HISTORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with LIVE_WATCH_HISTORY_PATH.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event, separators=(",", ":")) + "\n")
 
 
@@ -713,6 +882,32 @@ def run_paper_strategy_preview(
     }
 
 
+def run_live_strategy_preview(
+    *,
+    symbol: str,
+    feed: str | None,
+    consecutive_losses: int,
+):
+    market = fetch_stock_snapshot(
+        alpaca_live_market_data_credentials(feed),
+        symbol=symbol,
+        default_volatility_30d=float(os.getenv("AI_DEFAULT_VOLATILITY_30D", "0.03")),
+    )
+    account = fetch_live_account(alpaca_live_credentials())
+    portfolio = portfolio_from_account(account, consecutive_losses=consecutive_losses)
+    order = system.process_tick(market, portfolio)
+    return {
+        "mode": "live_proposal_only",
+        "auto_submit_enabled": False,
+        "bounded_authorization_required": LIVE_AUTHORIZATION_CONFIRMATION,
+        "market": serialize_market(market),
+        "portfolio_source": "alpaca_live_account",
+        "account": serialize_account(account),
+        "order_proposal": serialize_order(order),
+        "latest_audit": latest_audit_payload(),
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "time": datetime.now(timezone.utc).isoformat()}
@@ -920,7 +1115,11 @@ def broker_paper_strategy_scenarios(x_api_key: str | None = Header(default=None)
 @app.get("/broker/status")
 def broker_status(x_api_key: str | None = Header(default=None)):
     require_api_key(x_api_key)
-    broker = broker_readiness(config.broker)
+    broker = (
+        live_broker_readiness(config.broker)
+        if config.broker.mode == "live" or config.broker.live_enabled
+        else broker_readiness(config.broker)
+    )
     return {
         "provider": broker.provider,
         "mode": broker.mode,
@@ -928,6 +1127,333 @@ def broker_status(x_api_key: str | None = Header(default=None)):
         "ready": broker.ready,
         "status": broker.status,
         "reason": broker.reason,
+    }
+
+
+@app.get("/broker/live/readiness")
+@limiter.limit("10/minute")
+def broker_live_readiness(
+    request: Request,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    return live_preflight_payload()
+
+
+@app.get("/broker/live/account")
+@limiter.limit("20/minute")
+def broker_live_account(
+    request: Request,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = live_broker_readiness(config.broker)
+    if not broker.ready:
+        raise HTTPException(status_code=403, detail=broker.reason)
+    try:
+        account = fetch_live_account(alpaca_live_credentials())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "source": "alpaca_live_account",
+        "mode": "read_only",
+        "account": serialize_account(account),
+    }
+
+
+@app.get("/broker/live/clock")
+@limiter.limit("20/minute")
+def broker_live_clock(
+    request: Request,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = live_broker_readiness(config.broker)
+    if not broker.ready:
+        raise HTTPException(status_code=403, detail=broker.reason)
+    try:
+        clock = fetch_live_clock(alpaca_live_credentials())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {
+        "source": "alpaca_live_clock",
+        "mode": "read_only",
+        "clock": serialize_paper_clock(clock),
+    }
+
+
+@app.get("/broker/live/authorization")
+def broker_live_authorization_status(x_api_key: str | None = Header(default=None)):
+    require_api_key(x_api_key)
+    return live_authorization_status_payload()
+
+
+@app.post("/broker/live/watch_tick")
+@limiter.limit("20/minute")
+def broker_live_watch_tick(
+    request: Request,
+    req: PaperWatchTickRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = live_broker_readiness(config.broker)
+    if not broker.ready:
+        raise HTTPException(status_code=403, detail=broker.reason)
+    try:
+        clock = fetch_live_clock(alpaca_live_credentials())
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    if not clock.is_open:
+        event = {
+            "at": datetime.now(timezone.utc).isoformat(),
+            "symbol": req.symbol.upper(),
+            "feed": req.feed or config.broker.market_data_feed,
+            "auto_submit_enabled": False,
+            "portfolio_source": "not_evaluated",
+            "market": None,
+            "clock": serialize_paper_clock(clock),
+            "watch_status": "SKIPPED_MARKET_CLOSED",
+            "order_proposal": None,
+            "latest_audit": {
+                "at": datetime.now(timezone.utc).isoformat(),
+                "event": "live_watch_skip",
+                "severity": "INFO",
+                "details": "market_closed",
+            },
+        }
+    else:
+        try:
+            preview = run_live_strategy_preview(
+                symbol=req.symbol,
+                feed=req.feed,
+                consecutive_losses=req.consecutive_losses,
+            )
+        except (RuntimeError, ValueError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        event = {
+            "at": datetime.now(timezone.utc).isoformat(),
+            "symbol": req.symbol.upper(),
+            "feed": req.feed or config.broker.market_data_feed,
+            "auto_submit_enabled": False,
+            "portfolio_source": preview["portfolio_source"],
+            "market": preview["market"],
+            "clock": serialize_paper_clock(clock),
+            "watch_status": "EVALUATED",
+            "order_proposal": preview["order_proposal"],
+            "latest_audit": preview["latest_audit"],
+        }
+    try:
+        append_live_watch_event(event)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"live_watch_history_write_failed:{exc}") from exc
+    return event
+
+
+@app.post("/broker/live/order_preview")
+def broker_live_order_preview(
+    req: PaperOrderPreviewRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    order = OrderProposal(
+        symbol=req.symbol.upper(),
+        side=req.side,
+        quantity=req.quantity,
+        limit_price=req.limit_price,
+        expected_edge_bps=req.expected_edge_bps,
+        reason=req.reason,
+    )
+    broker = live_broker_readiness(config.broker)
+    return {
+        "submit_enabled": False,
+        "broker_status": broker.status,
+        "paper_only": False,
+        "live_warning": "preview_only_no_live_order_submitted",
+        "payload": alpaca_order_payload(order),
+    }
+
+
+@app.post("/broker/live/authorization/activate")
+@limiter.limit("3/minute")
+def broker_live_authorization_activate(
+    request: Request,
+    req: PaperPreauthorizationRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if req.confirm != LIVE_AUTHORIZATION_CONFIRMATION:
+        raise HTTPException(status_code=400, detail="live_authorization_confirmation_required")
+    preflight = live_preflight_payload()
+    if preflight.get("status") != "LIVE-PREFLIGHT-GO":
+        raise HTTPException(status_code=403, detail=preflight)
+    account = preflight.get("account")
+    if not isinstance(account, dict):
+        raise HTTPException(status_code=503, detail="verified_live_account_missing")
+    try:
+        live_authorization_store.activate(
+            confirmation=req.confirm,
+            policy=live_authorization_policy,
+            available_capital_usd=float(account["portfolio_value"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    system._audit(
+        "live_authorization_activated",
+        "CRITICAL",
+        "bounded 24-hour live lease",
+    )
+    return live_authorization_status_payload()
+
+
+@app.post("/broker/live/authorization/revoke")
+def broker_live_authorization_revoke(
+    req: PaperPreauthorizationRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    try:
+        live_authorization_store.revoke(confirmation=req.confirm)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    system._audit("live_authorization_revoked", "CRITICAL", "bounded live lease revoked")
+    return live_authorization_status_payload()
+
+
+@app.post("/broker/live/authorization/submit")
+@limiter.limit("3/minute")
+def broker_live_authorized_submit(
+    request: Request,
+    req: PaperPreauthorizedOrderRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = live_broker_readiness(config.broker)
+    if not broker.ready:
+        raise HTTPException(status_code=403, detail=broker.reason)
+    if config.policy.kill_switch:
+        raise HTTPException(status_code=403, detail="kill_switch_active")
+
+    credentials = alpaca_live_credentials()
+    try:
+        account = fetch_live_account(credentials)
+        clock = fetch_live_clock(credentials)
+        open_orders = fetch_live_orders(credentials, status="open", limit=100)
+        positions = fetch_live_positions(credentials)
+    except (RuntimeError, ValueError) as exc:
+        live_authorization_store.record_operational_error(str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    state = live_authorization_store.load()
+    state.current_equity_usd = float(account.portfolio_value)
+    state.peak_equity_usd = max(state.peak_equity_usd, state.current_equity_usd)
+    live_authorization_store.save(state)
+    order = OrderProposal(
+        symbol=req.symbol.upper(),
+        side=req.side,
+        quantity=req.quantity,
+        limit_price=req.limit_price,
+        expected_edge_bps=req.expected_edge_bps,
+        reason=req.reason,
+    )
+    session_date = clock.timestamp[:10]
+    gross_exposure = sum(abs(position.market_value) for position in positions)
+    decision = authorize_entry(
+        order,
+        spread_bps=req.spread_bps,
+        state=state,
+        context=AuthorizationContext(
+            broker_mode=config.broker.mode,
+            live_enabled=broker.live_enabled,
+            market_is_open=clock.is_open,
+            session_date=session_date,
+            gross_exposure_usd=gross_exposure,
+            daily_realized_pnl_usd=state.daily_realized_pnl_usd,
+            open_order_symbols=tuple(item.symbol.upper() for item in open_orders),
+        ),
+        policy=live_authorization_policy,
+    )
+    if not decision.approved:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "reason": decision.reason,
+                "effective_limits": asdict(decision.effective_limits),
+            },
+        )
+
+    exits = protective_exit_plan(
+        symbol=order.symbol,
+        quantity=order.quantity,
+        entry_price=order.limit_price,
+        policy=live_authorization_policy,
+    )
+    try:
+        result = submit_live_order(credentials, order)
+    except (RuntimeError, ValueError) as exc:
+        live_authorization_store.record_operational_error(str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    live_authorization_store.record_entry(
+        session_date=session_date,
+        order_notional_usd=order.quantity * order.limit_price,
+        symbol=order.symbol,
+    )
+    protective_exit_payload = asdict(exits)
+    record_protective_exit_plan(
+        broker_order_id=result.broker_order_id,
+        plan=protective_exit_payload,
+        submitted_at=result.submitted_at,
+        path=LIVE_PROTECTIVE_EXIT_STATE_PATH,
+    )
+    system._audit(
+        "bounded_live_fractional_entry_submitted",
+        "CRITICAL",
+        f"{result.side} {result.symbol} status={result.status}",
+    )
+    return {
+        "submitted": True,
+        "real_money": True,
+        "authorization_reason": decision.reason,
+        "effective_limits": asdict(decision.effective_limits),
+        "broker_order": serialize_paper_order_result(result),
+        "protective_exit": protective_exit_payload,
+        "protection_mode": "application_managed_live_exit_pending_verification",
+        "broker_payload": alpaca_order_payload(order),
+    }
+
+
+@app.post("/broker/live/emergency_stop")
+@limiter.limit("3/minute")
+def broker_live_emergency_stop(
+    request: Request,
+    req: PaperPreauthorizationRequest,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    if req.confirm != "STOP_LIVE_TRADING":
+        raise HTTPException(status_code=400, detail="emergency_stop_confirmation_required")
+    live_authorization_store.revoke(confirmation=LIVE_REVOCATION_CONFIRMATION)
+    broker = live_broker_readiness(config.broker)
+    canceled_orders: list[object] = []
+    if broker.ready:
+        try:
+            canceled_orders = [
+                serialize_paper_order_result(order)
+                for order in cancel_live_orders(alpaca_live_credentials())
+            ]
+        except (RuntimeError, ValueError) as exc:
+            live_authorization_store.record_operational_error(str(exc))
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+    system._audit(
+        "live_emergency_stop",
+        "CRITICAL",
+        f"authorization revoked; canceled_orders={len(canceled_orders)}",
+    )
+    return {
+        "status": "LIVE-STOPPED",
+        "authorization_active": False,
+        "canceled_orders": canceled_orders,
+        "protective_exits_remain_managed": True,
     }
 
 
@@ -1382,6 +1908,329 @@ def broker_paper_protective_exits_check(
     status = "PROTECTIVE-EXIT-SUBMITTED" if any(item.get("action") == "EXIT_SUBMITTED" for item in actions) else "PROTECTIVE-EXITS-CHECKED"
     return {
         "status": status,
+        "checked": checked,
+        "actions": actions,
+        "open_positions": [serialize_paper_position(position) for position in positions],
+    }
+
+
+def reconcile_live_exit_fill(
+    item: dict[str, object],
+    broker_order: object,
+    credentials: AlpacaLiveCredentials,
+) -> tuple[dict[str, object], dict[str, object]]:
+    filled_quantity = float(
+        getattr(broker_order, "filled_quantity", None)
+        or item.get("quantity", 0.0)
+        or 0.0
+    )
+    exit_fill_price = float(
+        getattr(broker_order, "filled_avg_price", None)
+        or item.get("exit_limit_price", 0.0)
+        or 0.0
+    )
+    entry_price = float(item.get("entry_price", 0.0) or 0.0)
+    realized_pnl = round(
+        (exit_fill_price - entry_price) * filled_quantity,
+        6,
+    )
+    try:
+        account = fetch_live_account(credentials)
+    except RuntimeError as exc:
+        live_authorization_store.record_operational_error(str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    live_authorization_store.record_closed_trade(
+        realized_pnl_usd=realized_pnl,
+        released_exposure_usd=entry_price * filled_quantity,
+        current_equity_usd=float(account.portfolio_value),
+        symbol=str(item.get("symbol", "")),
+    )
+    return (
+        {
+            **item,
+            "status": "EXIT_FILLED",
+            "exit_reconciled_at": datetime.now(timezone.utc).isoformat(),
+            "exit_filled_price": exit_fill_price,
+            "exit_filled_quantity": filled_quantity,
+            "realized_pnl_usd": realized_pnl,
+        },
+        {
+            "symbol": item.get("symbol"),
+            "action": "EXIT_FILLED",
+            "broker_order": serialize_paper_order_result(broker_order),
+            "realized_pnl_usd": realized_pnl,
+        },
+    )
+
+
+@app.post("/broker/live/protective_exits/check")
+@limiter.limit("20/minute")
+def broker_live_protective_exits_check(
+    request: Request,
+    x_api_key: str | None = Header(default=None),
+):
+    require_api_key(x_api_key)
+    broker = live_broker_readiness(config.broker)
+    if not broker.ready:
+        raise HTTPException(status_code=403, detail=broker.reason)
+
+    state = load_protective_exit_state(LIVE_PROTECTIVE_EXIT_STATE_PATH)
+    active = state["active"] if isinstance(state.get("active"), list) else []
+    history = state["history"] if isinstance(state.get("history"), list) else []
+    pending_exits = [
+        item
+        for item in history
+        if isinstance(item, dict) and item.get("status") == "EXIT_SUBMITTED"
+    ]
+    if not active and not pending_exits:
+        return {"status": "NO-ACTIVE-PROTECTIVE-EXITS", "checked": 0, "actions": []}
+
+    credentials = alpaca_live_credentials()
+    try:
+        clock = fetch_live_clock(credentials)
+        positions = fetch_live_positions(credentials)
+    except (RuntimeError, ValueError) as exc:
+        live_authorization_store.record_operational_error(str(exc))
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    actions: list[dict[str, object]] = []
+    broker_orders: list[object] = []
+    orders_loaded = False
+    if pending_exits:
+        try:
+            broker_orders = fetch_live_orders(credentials, status="all", limit=100)
+            orders_loaded = True
+        except (RuntimeError, ValueError) as exc:
+            live_authorization_store.record_operational_error(str(exc))
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+        order_by_id = {order.broker_order_id: order for order in broker_orders}
+        reconciled_history: list[object] = []
+        requeued: list[dict[str, object]] = []
+        terminal_failure_statuses = {"canceled", "expired", "rejected", "suspended"}
+        for item in history:
+            if not isinstance(item, dict) or item.get("status") != "EXIT_SUBMITTED":
+                reconciled_history.append(item)
+                continue
+            order_id = str(item.get("exit_broker_order_id", ""))
+            broker_order = order_by_id.get(order_id)
+            if broker_order is None:
+                reconciled_history.append(item)
+                actions.append(
+                    {
+                        "symbol": item.get("symbol"),
+                        "action": "EXIT_PENDING",
+                        "broker_order_id": order_id,
+                        "reason": "broker_order_not_found_in_recent_orders",
+                    }
+                )
+                continue
+            broker_status = broker_order.status.lower()
+            if broker_status == "filled":
+                filled_plan, fill_action = reconcile_live_exit_fill(
+                    item,
+                    broker_order,
+                    credentials,
+                )
+                reconciled_history.append(filled_plan)
+                actions.append(fill_action)
+                continue
+            if broker_status in terminal_failure_statuses:
+                reconciled_history.append(
+                    {
+                        **item,
+                        "status": "EXIT_FAILED",
+                        "exit_failure_status": broker_status,
+                        "exit_reconciled_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                requeued.append(
+                    {
+                        **item,
+                        "status": "ACTIVE",
+                        "exit_broker_order_id": None,
+                        "exit_submitted_at": None,
+                    }
+                )
+                reason = f"live_protective_exit_{broker_status}:{order_id}"
+                live_authorization_store.record_operational_error(reason)
+                actions.append(
+                    {
+                        "symbol": item.get("symbol"),
+                        "action": "EXIT_REQUEUED",
+                        "broker_order": serialize_paper_order_result(broker_order),
+                        "reason": broker_status,
+                    }
+                )
+                continue
+            reconciled_history.append(item)
+            actions.append(
+                {
+                    "symbol": item.get("symbol"),
+                    "action": "EXIT_PENDING",
+                    "broker_order": serialize_paper_order_result(broker_order),
+                }
+            )
+
+        history = reconciled_history
+        active = [*active, *requeued]
+        state["active"] = active
+        state["history"] = history[-200:]
+        save_protective_exit_state(state, LIVE_PROTECTIVE_EXIT_STATE_PATH)
+
+    checked = len(active) + len(pending_exits)
+    if not active:
+        return {
+            "status": (
+                "PROTECTIVE-EXIT-FILLED"
+                if any(item.get("action") == "EXIT_FILLED" for item in actions)
+                else "PROTECTIVE-EXIT-PENDING"
+            ),
+            "checked": checked,
+            "actions": actions,
+            "open_positions": [serialize_paper_position(position) for position in positions],
+        }
+    if not clock.is_open:
+        return {
+            "status": "MARKET-CLOSED-NO-ACTION",
+            "checked": checked,
+            "clock": serialize_paper_clock(clock),
+            "actions": actions,
+        }
+
+    now = parse_timestamp(clock.timestamp) or datetime.now(timezone.utc)
+    position_by_symbol = {
+        position.symbol.upper(): position
+        for position in positions
+        if position.quantity > 0
+    }
+    remaining: list[dict[str, object]] = []
+    for plan in active:
+        if not isinstance(plan, dict) or plan.get("status") != "ACTIVE":
+            history.append(plan if isinstance(plan, dict) else {"event": "invalid_plan_skipped"})
+            continue
+        symbol = str(plan.get("symbol", "")).upper()
+        position = position_by_symbol.get(symbol)
+        if position is None:
+            if not orders_loaded:
+                try:
+                    broker_orders = fetch_live_orders(credentials, status="all", limit=100)
+                    orders_loaded = True
+                except (RuntimeError, ValueError) as exc:
+                    live_authorization_store.record_operational_error(str(exc))
+                    raise HTTPException(status_code=502, detail=str(exc)) from exc
+            entry_order_id = str(plan.get("entry_broker_order_id", ""))
+            entry_order = next(
+                (
+                    order
+                    for order in broker_orders
+                    if getattr(order, "broker_order_id", "") == entry_order_id
+                ),
+                None,
+            )
+            entry_status = str(getattr(entry_order, "status", "unknown")).lower()
+            if entry_status in {"canceled", "expired", "rejected", "suspended"}:
+                history.append(
+                    {
+                        **plan,
+                        "status": "ENTRY_FAILED",
+                        "entry_failure_status": entry_status,
+                        "entry_reconciled_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+                reason = f"live_entry_{entry_status}:{entry_order_id}"
+                live_authorization_store.record_operational_error(reason)
+                actions.append(
+                    {
+                        "symbol": symbol,
+                        "action": "ENTRY_FAILED",
+                        "reason": entry_status,
+                        "broker_order_id": entry_order_id,
+                    }
+                )
+                continue
+            remaining.append(plan)
+            actions.append(
+                {
+                    "symbol": symbol,
+                    "action": (
+                        "ENTRY_FILLED_POSITION_PENDING"
+                        if entry_status == "filled"
+                        else "ENTRY_PENDING"
+                    ),
+                    "reason": "no_open_position",
+                    "broker_order_id": entry_order_id,
+                    "broker_status": entry_status,
+                }
+            )
+            continue
+        try:
+            market = fetch_stock_snapshot(alpaca_live_market_data_credentials(), symbol)
+        except (RuntimeError, ValueError) as exc:
+            remaining.append(plan)
+            actions.append({"symbol": symbol, "action": "SKIPPED", "reason": str(exc)})
+            continue
+
+        trigger = exit_trigger_for_plan(plan, market.price, now)
+        if trigger is None:
+            remaining.append(plan)
+            actions.append(
+                {
+                    "symbol": symbol,
+                    "action": "HELD",
+                    "market_price": market.price,
+                    "stop_price": plan.get("stop_price"),
+                    "take_profit_price": plan.get("take_profit_price"),
+                }
+            )
+            continue
+        exit_quantity = min(float(plan.get("quantity", 0.0) or 0.0), position.quantity)
+        if exit_quantity <= 0:
+            remaining.append(plan)
+            actions.append({"symbol": symbol, "action": "SKIPPED", "reason": "non_positive_exit_quantity"})
+            continue
+        exit_order = OrderProposal(
+            symbol=symbol,
+            side=Side.SELL,
+            quantity=exit_quantity,
+            limit_price=market.price,
+            expected_edge_bps=0.0,
+            reason=f"live_protective_exit:{trigger}",
+        )
+        try:
+            result = submit_live_order(credentials, exit_order)
+        except (RuntimeError, ValueError) as exc:
+            live_authorization_store.record_operational_error(str(exc))
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        history.append(
+            {
+                **plan,
+                "status": "EXIT_SUBMITTED",
+                "exit_reason": trigger,
+                "exit_broker_order_id": result.broker_order_id,
+                "exit_submitted_at": result.submitted_at or now.isoformat(),
+                "exit_limit_price": market.price,
+            }
+        )
+        actions.append(
+            {
+                "symbol": symbol,
+                "action": "EXIT_SUBMITTED",
+                "reason": trigger,
+                "market_price": market.price,
+                "broker_order": serialize_paper_order_result(result),
+            }
+        )
+
+    state["active"] = remaining
+    state["history"] = history[-200:]
+    save_protective_exit_state(state, LIVE_PROTECTIVE_EXIT_STATE_PATH)
+    return {
+        "status": (
+            "PROTECTIVE-EXIT-SUBMITTED"
+            if any(item.get("action") == "EXIT_SUBMITTED" for item in actions)
+            else "PROTECTIVE-EXITS-CHECKED"
+        ),
         "checked": checked,
         "actions": actions,
         "open_positions": [serialize_paper_position(position) for position in positions],

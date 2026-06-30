@@ -160,6 +160,24 @@ def test_paper_order_result_from_payload_masks_to_safe_fields():
     assert result.status == "accepted"
     assert result.symbol == "QQQ"
     assert result.side == "buy"
+    assert result.filled_avg_price is None
+    assert result.filled_quantity is None
+
+
+def test_order_result_preserves_fill_values_for_performance_accounting():
+    result = paper_order_result_from_payload(
+        {
+            "id": "order-123",
+            "status": "filled",
+            "symbol": "QQQ",
+            "side": "sell",
+            "filled_avg_price": "703.25",
+            "filled_qty": "0.008",
+        }
+    )
+
+    assert result.filled_avg_price == 703.25
+    assert result.filled_quantity == 0.008
 
 
 def test_paper_orders_from_payload_returns_safe_order_results():

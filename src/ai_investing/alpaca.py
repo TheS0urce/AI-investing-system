@@ -52,6 +52,8 @@ class AlpacaPaperOrderResult:
     symbol: str
     side: str
     submitted_at: str | None
+    filled_avg_price: float | None = None
+    filled_quantity: float | None = None
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,8 @@ def alpaca_bracket_order_payload(
 
 
 def paper_order_result_from_payload(payload: dict[str, Any]) -> AlpacaPaperOrderResult:
+    filled_avg_price = payload.get("filled_avg_price")
+    filled_quantity = payload.get("filled_qty")
     return AlpacaPaperOrderResult(
         broker_order_id=str(payload.get("id", "")),
         client_order_id=payload.get("client_order_id"),
@@ -163,6 +167,16 @@ def paper_order_result_from_payload(payload: dict[str, Any]) -> AlpacaPaperOrder
         symbol=str(payload.get("symbol", "")),
         side=str(payload.get("side", "")),
         submitted_at=payload.get("submitted_at"),
+        filled_avg_price=(
+            float(decimal_string(filled_avg_price))
+            if filled_avg_price is not None
+            else None
+        ),
+        filled_quantity=(
+            float(decimal_string(filled_quantity))
+            if filled_quantity is not None
+            else None
+        ),
     )
 
 

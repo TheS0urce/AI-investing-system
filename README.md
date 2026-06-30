@@ -57,9 +57,9 @@ pip install -r requirements.txt
 python examples/run_demo.py
 ```
 
-## Current Paper-Trading Stage
+## Current Deployment Stage
 
-The current deployment stage is **Alpaca paper trading only**:
+The validated deployment remains **Alpaca paper trading** by default:
 
 - Broker mode: `paper`
 - Live routing: disabled
@@ -69,6 +69,11 @@ The current deployment stage is **Alpaca paper trading only**:
 - Optional bounded paper preauthorization: inactive until explicitly activated
 - Market-open watch mode: read-only by default
 - Market-open watch launcher requires full `PAPER-MARKET-OPEN-GO` preflight before running
+
+A separate bounded live path is implemented but disabled by default. It requires
+production credentials, exact production-domain validation, a verified `$250-$350`
+account value, no existing orders or positions, an exact `AUTHORIZE_BOUNDED_LIVE`
+phrase, and a 24-hour lease. See `LIVE_LAUNCH_RUNBOOK.md`.
 
 Useful local commands:
 
@@ -220,7 +225,8 @@ The system is composed of:
 - Strategy is a simple, deterministic placeholder (not production alpha).
 - Execution uses a fixed risk budget (2% of equity) and conviction-weighted sizing.
 - Low-confidence signals are ignored.
-- No live broker routing logic is included in this scaffold.
+- Live broker routing is present behind separate fail-closed configuration,
+  preflight, authorization, capital, and scheduler gates.
 
 ### Self-Learning Status
 - **No online self-learning loop is implemented in runtime.**
@@ -252,6 +258,7 @@ The system is composed of:
 
 ### Current Scope & Limitations
 - Educational/safety infrastructure, not investment advice.
-- Paper-only broker integration exists for staged validation; live routing remains disabled.
+- Paper integration is the default. Bounded live integration remains disabled until
+  the first-live runbook gates are explicitly satisfied.
 - Not a complete OMS/EMS or live broker-execution stack.
 - Requires explicit human governance and staged rollout before any live capital deployment.

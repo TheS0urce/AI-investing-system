@@ -4,7 +4,11 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 
 import app
-from src.ai_investing.preauthorization import PreauthorizationStore
+from src.ai_investing.preauthorization import (
+    LIVE_AUTHORIZATION_CONFIRMATION,
+    LIVE_REVOCATION_CONFIRMATION,
+    PreauthorizationStore,
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +52,20 @@ class FakeClock:
 def client(monkeypatch):
     monkeypatch.setenv("AI_API_KEY", "test-key")
     return TestClient(app.app)
+
+
+def configure_live(monkeypatch):
+    monkeypatch.setattr(app.config.broker, "provider", "alpaca")
+    monkeypatch.setattr(app.config.broker, "mode", "live")
+    monkeypatch.setattr(app.config.broker, "live_enabled", True)
+    monkeypatch.setattr(app.config.broker, "live_base_url", "https://api.alpaca.markets")
+    monkeypatch.setattr(app.config.broker, "live_api_key_present", True)
+    monkeypatch.setattr(app.config.broker, "live_secret_key_present", True)
+    monkeypatch.setattr(app.config.policy, "kill_switch", False)
+    monkeypatch.setattr(app.config.risk, "allow_short_sales", False)
+    monkeypatch.setenv("ALPACA_LIVE_API_KEY", "live-key")
+    monkeypatch.setenv("ALPACA_LIVE_SECRET_KEY", "live-secret")
+    monkeypatch.setenv("ALPACA_LIVE_BASE_URL", "https://api.alpaca.markets")
 
 
 def test_paper_submit_requires_confirmation_phrase(monkeypatch):
@@ -1273,3 +1291,398 @@ def test_paper_ops_snapshot_rejects_invalid_watch_limit(monkeypatch):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "watch_limit_must_be_between_1_and_5000"
+
+
+def test_live_readiness_is_disabled_without_master_switch(monkeypatch, tmp_path):
+    monkeypatch.setattr(app.config.broker, "provider", "alpaca")
+    monkeypatch.setattr(app.config.broker, "mode", "paper")
+    monkeypatch.setattr(app.config.broker, "live_enabled", False)
+    monkeypatch.setattr(
+        app,
+        "live_authorization_store",
+        PreauthorizationStore(
+            tmp_path / "live.json",
+            paper_only=False,
+            authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+            revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+            event_prefix="live",
+        ),
+    )
+
+    response = client(monkeypatch).get(
+        "/broker/live/readiness",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "LIVE-NO-GO"
+    assert response.json()["broker"]["status"] == "LIVE-DISABLED"
+
+
+def test_live_readiness_requires_expected_empty_account(monkeypatch, tmp_path):
+    configure_live(monkeypatch)
+    monkeypatch.setattr(
+        app,
+        "live_authorization_store",
+        PreauthorizationStore(
+            tmp_path / "live.json",
+            paper_only=False,
+            authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+            revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+            event_prefix="live",
+        ),
+    )
+    monkeypatch.setattr(
+        app,
+        "fetch_live_account",
+        lambda credentials: FakeAccountSummary(
+            buying_power="300",
+            cash="300",
+            portfolio_value="300",
+        ),
+    )
+    monkeypatch.setattr(app, "fetch_live_clock", lambda credentials: FakeClock(is_open=False))
+    monkeypatch.setattr(app, "fetch_live_orders", lambda credentials, status, limit: [])
+    monkeypatch.setattr(app, "fetch_live_positions", lambda credentials: [])
+
+    response = client(monkeypatch).get(
+        "/broker/live/readiness",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "LIVE-PREFLIGHT-GO"
+    assert response.json()["account"]["portfolio_value"] == "300"
+    assert all(check["status"] == "PASS" for check in response.json()["checks"])
+
+
+def test_live_authorization_requires_exact_phrase_and_verified_account(monkeypatch, tmp_path):
+    configure_live(monkeypatch)
+    store = PreauthorizationStore(
+        tmp_path / "live.json",
+        paper_only=False,
+        authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+        event_prefix="live",
+    )
+    monkeypatch.setattr(app, "live_authorization_store", store)
+    monkeypatch.setattr(
+        app,
+        "fetch_live_account",
+        lambda credentials: FakeAccountSummary(
+            buying_power="300",
+            cash="300",
+            portfolio_value="300",
+        ),
+    )
+    monkeypatch.setattr(app, "fetch_live_clock", lambda credentials: FakeClock(is_open=False))
+    monkeypatch.setattr(app, "fetch_live_orders", lambda credentials, status, limit: [])
+    monkeypatch.setattr(app, "fetch_live_positions", lambda credentials: [])
+
+    rejected = client(monkeypatch).post(
+        "/broker/live/authorization/activate",
+        headers={"X-API-Key": "test-key"},
+        json={"confirm": "AUTHORIZE_BOUNDED_PAPER"},
+    )
+    accepted = client(monkeypatch).post(
+        "/broker/live/authorization/activate",
+        headers={"X-API-Key": "test-key"},
+        json={"confirm": LIVE_AUTHORIZATION_CONFIRMATION},
+    )
+
+    assert rejected.status_code == 400
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == "ACTIVE"
+    assert accepted.json()["authorization"]["paper_only"] is False
+    assert accepted.json()["authorization"]["current_equity_usd"] == 300.0
+    assert accepted.json()["effective_limits"]["max_order_notional_usd"] == 12.0
+
+
+def test_live_submit_is_blocked_without_live_authorization(monkeypatch, tmp_path):
+    configure_live(monkeypatch)
+    monkeypatch.setattr(
+        app,
+        "live_authorization_store",
+        PreauthorizationStore(
+            tmp_path / "live.json",
+            paper_only=False,
+            authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+            revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+            event_prefix="live",
+        ),
+    )
+    monkeypatch.setattr(
+        app,
+        "fetch_live_account",
+        lambda credentials: FakeAccountSummary(
+            buying_power="300",
+            cash="300",
+            portfolio_value="300",
+        ),
+    )
+    monkeypatch.setattr(app, "fetch_live_clock", lambda credentials: FakeClock())
+    monkeypatch.setattr(app, "fetch_live_orders", lambda credentials, status, limit: [])
+    monkeypatch.setattr(app, "fetch_live_positions", lambda credentials: [])
+
+    def fail_submit(*args, **kwargs):
+        raise AssertionError("inactive live authorization reached broker")
+
+    monkeypatch.setattr(app, "submit_live_order", fail_submit)
+    response = client(monkeypatch).post(
+        "/broker/live/authorization/submit",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "symbol": "QQQ",
+            "side": "BUY",
+            "quantity": 0.008,
+            "limit_price": 700.0,
+            "expected_edge_bps": 10.0,
+            "spread_bps": 5.0,
+        },
+    )
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["reason"] == "authorization_inactive_or_expired"
+
+
+def test_active_live_authorization_submits_bounded_order_and_records_protection(monkeypatch, tmp_path):
+    configure_live(monkeypatch)
+    store = PreauthorizationStore(
+        tmp_path / "live.json",
+        paper_only=False,
+        authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+        event_prefix="live",
+    )
+    store.activate(
+        confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        policy=app.live_authorization_policy,
+        available_capital_usd=300.0,
+    )
+    monkeypatch.setattr(app, "live_authorization_store", store)
+    monkeypatch.setattr(app, "LIVE_PROTECTIVE_EXIT_STATE_PATH", tmp_path / "live_exits.json")
+    monkeypatch.setattr(
+        app,
+        "fetch_live_account",
+        lambda credentials: FakeAccountSummary(
+            buying_power="300",
+            cash="300",
+            portfolio_value="300",
+        ),
+    )
+    monkeypatch.setattr(app, "fetch_live_clock", lambda credentials: FakeClock())
+    monkeypatch.setattr(app, "fetch_live_orders", lambda credentials, status, limit: [])
+    monkeypatch.setattr(app, "fetch_live_positions", lambda credentials: [])
+    monkeypatch.setattr(
+        app,
+        "submit_live_order",
+        lambda credentials, order: FakeOrderResult(
+            broker_order_id="live-order-1",
+            symbol=order.symbol,
+            side=order.side.value.lower(),
+        ),
+    )
+
+    response = client(monkeypatch).post(
+        "/broker/live/authorization/submit",
+        headers={"X-API-Key": "test-key"},
+        json={
+            "symbol": "QQQ",
+            "side": "BUY",
+            "quantity": 0.008,
+            "limit_price": 700.0,
+            "expected_edge_bps": 10.0,
+            "spread_bps": 5.0,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["submitted"] is True
+    assert response.json()["real_money"] is True
+    assert response.json()["authorization_reason"] == "preauthorized_live_entry"
+    assert response.json()["broker_order"]["broker_order_id"] == "live-order-1"
+    exits = app.load_protective_exit_state(tmp_path / "live_exits.json")
+    assert exits["active"][0]["entry_broker_order_id"] == "live-order-1"
+    assert exits["active"][0]["status"] == "ACTIVE"
+
+
+def test_live_emergency_stop_revokes_and_cancels_orders(monkeypatch, tmp_path):
+    configure_live(monkeypatch)
+    store = PreauthorizationStore(
+        tmp_path / "live.json",
+        paper_only=False,
+        authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+        event_prefix="live",
+    )
+    store.activate(
+        confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        policy=app.live_authorization_policy,
+        available_capital_usd=300.0,
+    )
+    monkeypatch.setattr(app, "live_authorization_store", store)
+    monkeypatch.setattr(
+        app,
+        "cancel_live_orders",
+        lambda credentials: [
+            FakeOrderResult(
+                broker_order_id="live-order-1",
+                status="canceled",
+                symbol="QQQ",
+                side="buy",
+            )
+        ],
+    )
+
+    response = client(monkeypatch).post(
+        "/broker/live/emergency_stop",
+        headers={"X-API-Key": "test-key"},
+        json={"confirm": "STOP_LIVE_TRADING"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "LIVE-STOPPED"
+    assert response.json()["authorization_active"] is False
+    assert response.json()["canceled_orders"][0]["status"] == "canceled"
+    assert store.load().active is False
+
+
+def test_live_protection_archives_canceled_entry_and_pauses_new_entries(monkeypatch, tmp_path):
+    configure_live(monkeypatch)
+    store = PreauthorizationStore(
+        tmp_path / "live.json",
+        paper_only=False,
+        authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+        event_prefix="live",
+    )
+    store.activate(
+        confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        policy=app.live_authorization_policy,
+        available_capital_usd=300.0,
+    )
+    monkeypatch.setattr(app, "live_authorization_store", store)
+    monkeypatch.setattr(app, "LIVE_PROTECTIVE_EXIT_STATE_PATH", tmp_path / "live_exits.json")
+    app.save_protective_exit_state(
+        {
+            "active": [
+                {
+                    "symbol": "QQQ",
+                    "quantity": 0.008,
+                    "entry_price": 700.0,
+                    "stop_price": 689.5,
+                    "take_profit_price": 721.0,
+                    "max_holding_minutes": 360,
+                    "entry_broker_order_id": "live-entry-1",
+                    "entry_submitted_at": "2026-06-30T14:00:00Z",
+                    "status": "ACTIVE",
+                }
+            ],
+            "history": [],
+        },
+        tmp_path / "live_exits.json",
+    )
+    monkeypatch.setattr(app, "fetch_live_clock", lambda credentials: FakeClock())
+    monkeypatch.setattr(app, "fetch_live_positions", lambda credentials: [])
+    monkeypatch.setattr(
+        app,
+        "fetch_live_orders",
+        lambda credentials, status, limit: [
+            FakeOrderResult(
+                broker_order_id="live-entry-1",
+                status="canceled",
+                symbol="QQQ",
+                side="buy",
+            )
+        ],
+    )
+
+    response = client(monkeypatch).post(
+        "/broker/live/protective_exits/check",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["actions"][0]["action"] == "ENTRY_FAILED"
+    exits = app.load_protective_exit_state(tmp_path / "live_exits.json")
+    assert exits["active"] == []
+    assert exits["history"][0]["status"] == "ENTRY_FAILED"
+    assert store.load().active is False
+    assert store.load().operational_errors == 1
+
+
+def test_live_protection_records_filled_exit_performance(monkeypatch, tmp_path):
+    configure_live(monkeypatch)
+    store = PreauthorizationStore(
+        tmp_path / "live.json",
+        paper_only=False,
+        authorization_confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        revocation_confirmation=LIVE_REVOCATION_CONFIRMATION,
+        event_prefix="live",
+    )
+    store.activate(
+        confirmation=LIVE_AUTHORIZATION_CONFIRMATION,
+        policy=app.live_authorization_policy,
+        available_capital_usd=300.0,
+    )
+    store.record_entry(
+        session_date="2026-06-30",
+        order_notional_usd=10.0,
+        symbol="QQQ",
+    )
+    monkeypatch.setattr(app, "live_authorization_store", store)
+    monkeypatch.setattr(app, "LIVE_PROTECTIVE_EXIT_STATE_PATH", tmp_path / "live_exits.json")
+    app.save_protective_exit_state(
+        {
+            "active": [],
+            "history": [
+                {
+                    "symbol": "QQQ",
+                    "quantity": 0.1,
+                    "entry_price": 100.0,
+                    "status": "EXIT_SUBMITTED",
+                    "exit_broker_order_id": "live-exit-1",
+                    "exit_limit_price": 103.0,
+                }
+            ],
+        },
+        tmp_path / "live_exits.json",
+    )
+    monkeypatch.setattr(app, "fetch_live_clock", lambda credentials: FakeClock(is_open=False))
+    monkeypatch.setattr(app, "fetch_live_positions", lambda credentials: [])
+    monkeypatch.setattr(
+        app,
+        "fetch_live_orders",
+        lambda credentials, status, limit: [
+            FakeOrderResult(
+                broker_order_id="live-exit-1",
+                status="filled",
+                symbol="QQQ",
+                side="sell",
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        app,
+        "fetch_live_account",
+        lambda credentials: FakeAccountSummary(
+            buying_power="300.30",
+            cash="300.30",
+            portfolio_value="300.30",
+        ),
+    )
+
+    response = client(monkeypatch).post(
+        "/broker/live/protective_exits/check",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "PROTECTIVE-EXIT-FILLED"
+    assert response.json()["actions"][0]["realized_pnl_usd"] == 0.3
+    state = store.load()
+    assert state.closed_trades == 1
+    assert state.winning_trades == 1
+    assert state.realized_pnl_usd == 0.3
+    assert state.current_equity_usd == 300.3
+    assert state.gross_exposure_usd == 0.0

@@ -12,6 +12,8 @@ from .models import OrderProposal, Side
 APPROVED_SYMBOLS = ("SPY", "QQQ", "AAPL", "MSFT", "NVDA")
 PAPER_AUTHORIZATION_CONFIRMATION = "AUTHORIZE_BOUNDED_PAPER"
 PAPER_REVOCATION_CONFIRMATION = "REVOKE_BOUNDED_PAPER"
+LIVE_AUTHORIZATION_CONFIRMATION = "AUTHORIZE_BOUNDED_LIVE"
+LIVE_REVOCATION_CONFIRMATION = "REVOKE_BOUNDED_LIVE"
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,7 @@ class PreauthorizationPolicy:
     progression_trade_window: int = 20
     progression_step_pct: float = 0.10
     max_progression_steps: int = 3
+    scale_capital_percentages: bool = False
     progression_min_win_rate: float = 0.55
     progression_max_drawdown_pct: float = 0.03
     regression_win_rate: float = 0.45
@@ -157,8 +160,6 @@ def effective_limits(
             0.0,
         )
 
-    capital_order_cap = capital * policy.max_order_capital_pct
-    capital_exposure_cap = capital * policy.max_gross_exposure_capital_pct
     capital_loss_cap = capital * policy.max_daily_loss_capital_pct
 
     def limits_for(
@@ -169,6 +170,11 @@ def effective_limits(
         scale: float,
         entries: int,
     ) -> EffectiveLimits:
+        capital_scale = scale if policy.scale_capital_percentages else 1.0
+        capital_order_cap = capital * policy.max_order_capital_pct * capital_scale
+        capital_exposure_cap = (
+            capital * policy.max_gross_exposure_capital_pct * capital_scale
+        )
         return EffectiveLimits(
             risk_level=risk_level,
             status=status,
@@ -238,8 +244,17 @@ def effective_limits(
     )
 
 
-def authorization_is_active(state: PreauthorizationState, now: datetime | None = None) -> bool:
-    if not state.active or not state.expires_at or not state.paper_only:
+def authorization_is_active(
+    state: PreauthorizationState,
+    now: datetime | None = None,
+    *,
+    required_paper_only: bool = True,
+) -> bool:
+    if (
+        not state.active
+        or not state.expires_at
+        or state.paper_only != required_paper_only
+    ):
         return False
     now = now or datetime.now(timezone.utc)
     try:
@@ -262,10 +277,17 @@ def authorize_entry(
     limits = effective_limits(performance_from_state(state), policy)
     if limits.status == "PAUSED":
         return AuthorizationDecision(False, limits.reason, limits)
-    if not authorization_is_active(state, now):
+    if not authorization_is_active(
+        state,
+        now,
+        required_paper_only=policy.paper_only,
+    ):
         return AuthorizationDecision(False, "authorization_inactive_or_expired", limits)
-    if context.broker_mode != "paper" or context.live_enabled:
-        return AuthorizationDecision(False, "paper_only_guard_failed", limits)
+    if policy.paper_only:
+        if context.broker_mode != "paper" or context.live_enabled:
+            return AuthorizationDecision(False, "paper_only_guard_failed", limits)
+    elif context.broker_mode != "live" or not context.live_enabled:
+        return AuthorizationDecision(False, "live_only_guard_failed", limits)
     if not context.market_is_open:
         return AuthorizationDecision(False, "regular_market_hours_required", limits)
     if order.symbol.upper() not in policy.allowed_symbols:
@@ -297,7 +319,8 @@ def authorize_entry(
         return AuthorizationDecision(False, "preauthorized_daily_loss_limit_reached", limits)
     if order.symbol.upper() in context.open_order_symbols:
         return AuthorizationDecision(False, "duplicate_symbol_order_open", limits)
-    return AuthorizationDecision(True, "preauthorized_paper_entry", limits)
+    reason = "preauthorized_paper_entry" if policy.paper_only else "preauthorized_live_entry"
+    return AuthorizationDecision(True, reason, limits)
 
 
 def protective_exit_plan(
@@ -321,23 +344,41 @@ def protective_exit_plan(
 
 
 class PreauthorizationStore:
-    def __init__(self, path: Path):
+    def __init__(
+        self,
+        path: Path,
+        *,
+        paper_only: bool = True,
+        authorization_confirmation: str = PAPER_AUTHORIZATION_CONFIRMATION,
+        revocation_confirmation: str = PAPER_REVOCATION_CONFIRMATION,
+        event_prefix: str = "paper",
+    ):
         self.path = path
+        self.paper_only = paper_only
+        self.authorization_confirmation = authorization_confirmation
+        self.revocation_confirmation = revocation_confirmation
+        self.event_prefix = event_prefix
 
     def load(self) -> PreauthorizationState:
         if not self.path.exists():
-            return PreauthorizationState()
+            return PreauthorizationState(paper_only=self.paper_only)
         try:
             payload = json.loads(self.path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
             return PreauthorizationState(
+                paper_only=self.paper_only,
                 operational_errors=1,
                 audit=[{"event": "state_load_failed", "at": datetime.now(timezone.utc).isoformat()}],
             )
         if not isinstance(payload, dict):
-            return PreauthorizationState(operational_errors=1)
+            return PreauthorizationState(
+                paper_only=self.paper_only,
+                operational_errors=1,
+            )
         fields = PreauthorizationState.__dataclass_fields__
-        return PreauthorizationState(**{key: value for key, value in payload.items() if key in fields})
+        values = {key: value for key, value in payload.items() if key in fields}
+        values.setdefault("paper_only", self.paper_only)
+        return PreauthorizationState(**values)
 
     def save(self, state: PreauthorizationState) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -351,19 +392,32 @@ class PreauthorizationStore:
         confirmation: str,
         now: datetime | None = None,
         policy: PreauthorizationPolicy | None = None,
+        available_capital_usd: float | None = None,
     ) -> PreauthorizationState:
-        if confirmation != PAPER_AUTHORIZATION_CONFIRMATION:
+        if confirmation != self.authorization_confirmation:
             raise ValueError("preauthorization_confirmation_required")
         policy = policy or PreauthorizationPolicy()
+        if policy.paper_only != self.paper_only:
+            raise ValueError("preauthorization_policy_mode_mismatch")
+        if available_capital_usd is not None and available_capital_usd <= 0:
+            raise ValueError("available_capital_must_be_positive")
         now = now or datetime.now(timezone.utc)
         state = self.load()
         state.active = True
-        state.paper_only = True
+        state.paper_only = self.paper_only
         state.activated_at = now.isoformat()
         state.expires_at = (now + timedelta(hours=policy.lease_hours)).isoformat()
         state.revoked_at = None
         state.operational_errors = 0
-        state.audit.append({"event": "paper_preauthorization_activated", "at": now.isoformat()})
+        if available_capital_usd is not None:
+            state.current_equity_usd = round(available_capital_usd, 6)
+            state.peak_equity_usd = max(state.peak_equity_usd, state.current_equity_usd)
+        state.audit.append(
+            {
+                "event": f"{self.event_prefix}_preauthorization_activated",
+                "at": now.isoformat(),
+            }
+        )
         state.audit = state.audit[-200:]
         self.save(state)
         return state
@@ -374,13 +428,18 @@ class PreauthorizationStore:
         confirmation: str,
         now: datetime | None = None,
     ) -> PreauthorizationState:
-        if confirmation != PAPER_REVOCATION_CONFIRMATION:
+        if confirmation != self.revocation_confirmation:
             raise ValueError("preauthorization_revocation_confirmation_required")
         now = now or datetime.now(timezone.utc)
         state = self.load()
         state.active = False
         state.revoked_at = now.isoformat()
-        state.audit.append({"event": "paper_preauthorization_revoked", "at": now.isoformat()})
+        state.audit.append(
+            {
+                "event": f"{self.event_prefix}_preauthorization_revoked",
+                "at": now.isoformat(),
+            }
+        )
         state.audit = state.audit[-200:]
         self.save(state)
         return state
@@ -403,7 +462,7 @@ class PreauthorizationStore:
         state.gross_exposure_usd = round(state.gross_exposure_usd + order_notional_usd, 6)
         state.audit.append(
             {
-                "event": "paper_entry_recorded",
+                "event": f"{self.event_prefix}_entry_recorded",
                 "at": now.isoformat(),
                 "symbol": symbol.upper(),
                 "notional_usd": order_notional_usd,
@@ -437,7 +496,7 @@ class PreauthorizationStore:
         state.gross_exposure_usd = round(max(0.0, state.gross_exposure_usd - released_exposure_usd), 6)
         state.audit.append(
             {
-                "event": "paper_trade_closed",
+                "event": f"{self.event_prefix}_trade_closed",
                 "at": now.isoformat(),
                 "symbol": symbol.upper(),
                 "realized_pnl_usd": realized_pnl_usd,
