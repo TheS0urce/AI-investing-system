@@ -108,6 +108,7 @@ class AuthorizationContext:
     gross_exposure_usd: float
     daily_realized_pnl_usd: float
     open_order_symbols: tuple[str, ...] = ()
+    open_position_symbols: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -175,6 +176,10 @@ def effective_limits(
         capital_exposure_cap = (
             capital * policy.max_gross_exposure_capital_pct * capital_scale
         )
+        loss_budget_entries = max(
+            0,
+            policy.pause_consecutive_losses - performance.consecutive_losses,
+        )
         return EffectiveLimits(
             risk_level=risk_level,
             status=status,
@@ -184,7 +189,7 @@ def effective_limits(
                 min(policy.max_order_notional_usd * scale, capital_order_cap),
                 2,
             ),
-            max_entries_per_session=entries,
+            max_entries_per_session=min(entries, loss_budget_entries),
             max_gross_exposure_usd=round(
                 min(policy.max_gross_exposure_usd * scale, capital_exposure_cap),
                 2,
@@ -319,6 +324,8 @@ def authorize_entry(
         return AuthorizationDecision(False, "preauthorized_daily_loss_limit_reached", limits)
     if order.symbol.upper() in context.open_order_symbols:
         return AuthorizationDecision(False, "duplicate_symbol_order_open", limits)
+    if order.symbol.upper() in context.open_position_symbols:
+        return AuthorizationDecision(False, "duplicate_symbol_position_open", limits)
     reason = "preauthorized_paper_entry" if policy.paper_only else "preauthorized_live_entry"
     return AuthorizationDecision(True, reason, limits)
 

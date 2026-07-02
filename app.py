@@ -1373,6 +1373,11 @@ def broker_live_authorized_submit(
             gross_exposure_usd=gross_exposure,
             daily_realized_pnl_usd=state.daily_realized_pnl_usd,
             open_order_symbols=tuple(item.symbol.upper() for item in open_orders),
+            open_position_symbols=tuple(
+                position.symbol.upper()
+                for position in positions
+                if position.quantity > 0
+            ),
         ),
         policy=live_authorization_policy,
     )

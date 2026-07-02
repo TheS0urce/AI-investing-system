@@ -105,6 +105,11 @@ def test_base_policy_approves_bounded_paper_buy():
         (buy_order(), context(gross_exposure_usd=5.0), "preauthorized_exposure_limit_exceeded"),
         (buy_order(), context(daily_realized_pnl_usd=-2.0), "preauthorized_daily_loss_limit_reached"),
         (buy_order(), context(open_order_symbols=("QQQ",)), "duplicate_symbol_order_open"),
+        (
+            buy_order(),
+            context(open_position_symbols=("QQQ",)),
+            "duplicate_symbol_position_open",
+        ),
     ],
 )
 def test_base_policy_rejects_outside_envelope(order, ctx, reason):
@@ -145,6 +150,13 @@ def test_session_entry_limit_is_enforced():
     assert decision.reason == "session_entry_limit_reached"
 
 
+def test_entry_limit_tightens_when_one_loss_remains_before_pause():
+    limits = effective_limits(PerformanceSnapshot(consecutive_losses=2))
+
+    assert limits.status == "ACTIVE"
+    assert limits.max_entries_per_session == 1
+
+
 def test_expired_authorization_fails_closed():
     decision = authorize_entry(
         buy_order(),
@@ -172,7 +184,7 @@ def test_progression_relaxes_opportunity_limits_but_not_loss_ceiling():
     assert limits.risk_level == 2
     assert limits.available_capital_usd == 207.0
     assert limits.max_order_notional_usd == 4.8
-    assert limits.max_entries_per_session == 4
+    assert limits.max_entries_per_session == 3
     assert limits.max_gross_exposure_usd == 9.6
     assert limits.max_daily_loss_usd == 2.0
 
