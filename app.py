@@ -948,7 +948,11 @@ def simulate_tick(request: Request, req: TickRequest, x_api_key: str | None = He
 def dashboard_summary(x_api_key: str | None = Header(default=None)):
     require_api_key(x_api_key)
     latest_audit = system.audit_log[-1] if system.audit_log else None
-    broker = broker_readiness(config.broker)
+    broker = (
+        live_broker_readiness(config.broker)
+        if config.broker.mode == "live" or config.broker.live_enabled
+        else broker_readiness(config.broker)
+    )
     return {
         "status": "ok",
         "manual_approval_required": config.policy.require_manual_approval,

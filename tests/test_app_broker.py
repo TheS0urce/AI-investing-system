@@ -1319,6 +1319,19 @@ def test_live_readiness_is_disabled_without_master_switch(monkeypatch, tmp_path)
     assert response.json()["broker"]["status"] == "LIVE-DISABLED"
 
 
+def test_dashboard_summary_reports_live_readiness_in_live_mode(monkeypatch):
+    configure_live(monkeypatch)
+
+    response = client(monkeypatch).get(
+        "/dashboard/summary",
+        headers={"X-API-Key": "test-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["broker"]["status"] == "ALPACA-LIVE-READY"
+    assert response.json()["broker"]["ready"] is True
+
+
 def test_live_readiness_requires_expected_empty_account(monkeypatch, tmp_path):
     configure_live(monkeypatch)
     monkeypatch.setattr(
