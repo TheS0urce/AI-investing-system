@@ -14,6 +14,12 @@ from run_paper_watch import load_dotenv
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CONTROLLED_SUBMIT_BLOCK_REASONS = {
+    "session_entry_limit_reached",
+    "preauthorized_daily_loss_limit_reached",
+    "preauthorized_exposure_limit_exceeded",
+    "authorization_inactive_or_expired",
+}
 
 
 def request_json(
@@ -53,6 +59,22 @@ def proposal_request(event: dict[str, Any]) -> dict[str, Any] | None:
         "reason": proposal.get("reason"),
         "spread_bps": market.get("spread_bps"),
     }
+
+
+def controlled_submit_block_reason(body: str) -> str | None:
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    detail = payload.get("detail")
+    if not isinstance(detail, dict):
+        return None
+    reason = detail.get("reason")
+    if isinstance(reason, str) and reason in CONTROLLED_SUBMIT_BLOCK_REASONS:
+        return reason
+    return None
 
 
 def main() -> int:
@@ -137,12 +159,27 @@ def main() -> int:
                 if proposal is None or submit_attempts >= args.max_submits:
                     continue
                 submit_attempts += 1
-                submitted = request_json(
-                    api_base,
-                    api_key,
-                    "/broker/live/authorization/submit",
-                    payload=proposal,
-                )
+                try:
+                    submitted = request_json(
+                        api_base,
+                        api_key,
+                        "/broker/live/authorization/submit",
+                        payload=proposal,
+                    )
+                except urllib.error.HTTPError as exc:
+                    body = exc.read().decode("utf-8")[:500]
+                    controlled_reason = controlled_submit_block_reason(body)
+                    if controlled_reason is not None:
+                        print(
+                            json.dumps(
+                                {
+                                    "status": "LIVE-WATCH-CONTROLLED-STOP",
+                                    "reason": controlled_reason,
+                                }
+                            )
+                        )
+                        return 0
+                    raise
                 print(
                     json.dumps(
                         {

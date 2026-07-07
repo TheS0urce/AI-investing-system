@@ -54,6 +54,17 @@ def test_proposal_request_builds_bounded_submit_payload():
     }
 
 
+def test_controlled_submit_block_reason_recognizes_session_limit():
+    body = '{"detail":{"reason":"session_entry_limit_reached"}}'
+
+    assert live_watch.controlled_submit_block_reason(body) == "session_entry_limit_reached"
+
+
+def test_controlled_submit_block_reason_ignores_unexpected_payloads():
+    assert live_watch.controlled_submit_block_reason("not-json") is None
+    assert live_watch.controlled_submit_block_reason('{"detail":{"reason":"broker_down"}}') is None
+
+
 def test_scheduled_live_watch_reuses_retry_aware_session_logic():
     reason = scheduled_live.session_completion_reason(
         preauthorized_submit=True,
