@@ -355,8 +355,64 @@ def test_policy_starts_with_requested_high_aversion_limits():
     assert policy.max_order_capital_pct == 0.04
     assert policy.max_gross_exposure_capital_pct == 0.08
     assert policy.max_daily_loss_capital_pct == 0.02
+    assert policy.recovery_edge_bps_per_loss == 3.0
+    assert policy.recovery_spread_tightening_pct_per_loss == 0.20
     assert policy.stop_loss_pct == 0.015
     assert policy.take_profit_pct == 0.03
+
+
+def test_recovery_mode_requires_stronger_edge_after_losses():
+    policy = PreauthorizationPolicy(paper_only=False)
+    state = active_state(
+        paper_only=False,
+        current_equity_usd=300.0,
+        peak_equity_usd=300.0,
+        consecutive_losses=2,
+    )
+
+    blocked = authorize_entry(
+        buy_order(edge_bps=14.0),
+        spread_bps=5.0,
+        state=state,
+        context=context(broker_mode="live", live_enabled=True),
+        policy=policy,
+        now=NOW,
+    )
+    approved = authorize_entry(
+        buy_order(edge_bps=15.0),
+        spread_bps=5.0,
+        state=state,
+        context=context(broker_mode="live", live_enabled=True),
+        policy=policy,
+        now=NOW,
+    )
+
+    assert blocked.reason == "insufficient_expected_edge"
+    assert blocked.effective_limits.minimum_expected_edge_bps == 15.0
+    assert not blocked.approved
+    assert approved.approved
+
+
+def test_recovery_mode_tightens_spread_after_losses():
+    policy = PreauthorizationPolicy(paper_only=False)
+    state = active_state(
+        paper_only=False,
+        current_equity_usd=300.0,
+        peak_equity_usd=300.0,
+        consecutive_losses=2,
+    )
+
+    decision = authorize_entry(
+        buy_order(edge_bps=15.0),
+        spread_bps=18.01,
+        state=state,
+        context=context(broker_mode="live", live_enabled=True),
+        policy=policy,
+        now=NOW,
+    )
+
+    assert decision.reason == "spread_too_wide"
+    assert decision.effective_limits.max_spread_bps == 18.0
 
 
 def test_live_policy_requires_live_state_and_live_context():

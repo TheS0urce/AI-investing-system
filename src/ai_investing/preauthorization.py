@@ -32,6 +32,8 @@ class PreauthorizationPolicy:
     minimum_order_notional_usd: float = 1.0
     minimum_expected_edge_bps: float = 9.0
     max_spread_bps: float = 30.0
+    recovery_edge_bps_per_loss: float = 3.0
+    recovery_spread_tightening_pct_per_loss: float = 0.20
     stop_loss_pct: float = 0.015
     take_profit_pct: float = 0.03
     max_holding_minutes: int = 360
@@ -76,6 +78,8 @@ class EffectiveLimits:
     max_entries_per_session: int
     max_gross_exposure_usd: float
     max_daily_loss_usd: float
+    minimum_expected_edge_bps: float
+    max_spread_bps: float
 
 
 @dataclass
@@ -159,9 +163,16 @@ def effective_limits(
             0,
             0.0,
             0.0,
+            policy.minimum_expected_edge_bps,
+            policy.max_spread_bps,
         )
 
     capital_loss_cap = capital * policy.max_daily_loss_capital_pct
+    loss_count = max(0, performance.consecutive_losses)
+    recovery_spread_scale = max(
+        0.25,
+        1.0 - policy.recovery_spread_tightening_pct_per_loss * loss_count,
+    )
 
     def limits_for(
         *,
@@ -197,6 +208,12 @@ def effective_limits(
             # Capital declines tighten this ceiling; growth never expands it above
             # the manually governed dollar cap.
             max_daily_loss_usd=round(min(policy.max_daily_loss_usd, capital_loss_cap), 2),
+            minimum_expected_edge_bps=round(
+                policy.minimum_expected_edge_bps
+                + policy.recovery_edge_bps_per_loss * loss_count,
+                2,
+            ),
+            max_spread_bps=round(policy.max_spread_bps * recovery_spread_scale, 2),
         )
 
     if performance.operational_errors >= policy.pause_operational_errors:
@@ -299,9 +316,9 @@ def authorize_entry(
         return AuthorizationDecision(False, "symbol_not_preauthorized", limits)
     if policy.long_only and order.side != Side.BUY:
         return AuthorizationDecision(False, "long_only_entry_required", limits)
-    if spread_bps > policy.max_spread_bps:
+    if spread_bps > limits.max_spread_bps:
         return AuthorizationDecision(False, "spread_too_wide", limits)
-    if order.expected_edge_bps < policy.minimum_expected_edge_bps:
+    if order.expected_edge_bps < limits.minimum_expected_edge_bps:
         return AuthorizationDecision(False, "insufficient_expected_edge", limits)
 
     order_notional = order.quantity * order.limit_price
