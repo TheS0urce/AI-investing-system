@@ -22,6 +22,14 @@ scheduled_live = importlib.util.module_from_spec(SCHEDULED_SPEC)
 assert SCHEDULED_SPEC.loader is not None
 SCHEDULED_SPEC.loader.exec_module(scheduled_live)
 
+RECOVERY_OBSERVER_SPEC = importlib.util.spec_from_file_location(
+    "run_live_recovery_observer",
+    SCRIPTS_DIR / "run_live_recovery_observer.py",
+)
+recovery_observer = importlib.util.module_from_spec(RECOVERY_OBSERVER_SPEC)
+assert RECOVERY_OBSERVER_SPEC.loader is not None
+RECOVERY_OBSERVER_SPEC.loader.exec_module(recovery_observer)
+
 
 def test_proposal_request_requires_market_and_proposal():
     assert live_watch.proposal_request({}) is None
@@ -63,6 +71,38 @@ def test_controlled_submit_block_reason_recognizes_session_limit():
 def test_controlled_submit_block_reason_ignores_unexpected_payloads():
     assert live_watch.controlled_submit_block_reason("not-json") is None
     assert live_watch.controlled_submit_block_reason('{"detail":{"reason":"broker_down"}}') is None
+
+
+def test_recovery_gate_decision_blocks_weak_edge():
+    event = {
+        "order_proposal": {
+            "symbol": "NVDA",
+            "expected_edge_bps": 14.0,
+        },
+        "market": {"spread_bps": 5.0},
+    }
+    limits = {"minimum_expected_edge_bps": 18.0, "max_spread_bps": 12.0}
+
+    decision = recovery_observer.recovery_gate_decision(event, limits)
+
+    assert decision["status"] == "BLOCK"
+    assert decision["reason"] == "insufficient_expected_edge"
+
+
+def test_recovery_gate_decision_passes_strong_clean_proposal():
+    event = {
+        "order_proposal": {
+            "symbol": "QQQ",
+            "expected_edge_bps": 19.0,
+        },
+        "market": {"spread_bps": 3.0},
+    }
+    limits = {"minimum_expected_edge_bps": 18.0, "max_spread_bps": 12.0}
+
+    decision = recovery_observer.recovery_gate_decision(event, limits)
+
+    assert decision["status"] == "PASS"
+    assert decision["reason"] == "recovery_gate_pass"
 
 
 def test_scheduled_live_watch_reuses_retry_aware_session_logic():
