@@ -77,11 +77,11 @@ def test_recovery_gate_decision_blocks_weak_edge():
     event = {
         "order_proposal": {
             "symbol": "NVDA",
-            "expected_edge_bps": 14.0,
+            "expected_edge_bps": 12.0,
         },
         "market": {"spread_bps": 5.0},
     }
-    limits = {"minimum_expected_edge_bps": 18.0, "max_spread_bps": 12.0}
+    limits = {"minimum_expected_edge_bps": 13.5, "max_spread_bps": 12.0}
 
     decision = recovery_observer.recovery_gate_decision(event, limits)
 
@@ -93,11 +93,11 @@ def test_recovery_gate_decision_passes_strong_clean_proposal():
     event = {
         "order_proposal": {
             "symbol": "QQQ",
-            "expected_edge_bps": 19.0,
+            "expected_edge_bps": 14.0,
         },
         "market": {"spread_bps": 3.0},
     }
-    limits = {"minimum_expected_edge_bps": 18.0, "max_spread_bps": 12.0}
+    limits = {"minimum_expected_edge_bps": 13.5, "max_spread_bps": 12.0}
 
     decision = recovery_observer.recovery_gate_decision(event, limits)
 

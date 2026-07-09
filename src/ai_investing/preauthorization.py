@@ -32,7 +32,7 @@ class PreauthorizationPolicy:
     minimum_order_notional_usd: float = 1.0
     minimum_expected_edge_bps: float = 9.0
     max_spread_bps: float = 30.0
-    recovery_edge_bps_per_loss: float = 3.0
+    recovery_edge_bps_per_loss: float = 1.5
     recovery_spread_tightening_pct_per_loss: float = 0.20
     stop_loss_pct: float = 0.015
     take_profit_pct: float = 0.03
